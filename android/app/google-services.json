@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "463041342521",
+    "project_id": "pawnetwork-dd011",
+    "storage_bucket": "pawnetwork-dd011.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:463041342521:android:58ec0c64aaecb81c2b31e8",
+        "android_client_info": {
+          "package_name": "com.example.pawnetwork"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBqIskrY0FTsV7LX3OrZzkNMk4Lk5Uj590"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
