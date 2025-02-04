@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:pawnetwork/screens/pet_profile_screen.dart';
 import 'screens/signin_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/home_screen.dart';
@@ -91,6 +92,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       home: SignInScreen(),
       routes: {
+        '/pet-profile': (context) => PetProfileScreen(),
         '/signup': (context) => SignUpScreen(),
         '/home': (context) => HomeScreen(),
       },
