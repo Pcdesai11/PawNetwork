@@ -1,4 +1,5 @@
 // main.dart
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,8 +8,13 @@ import 'screens/signin_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/home_screen.dart';
 
-void main() async {
+Future main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if(kIsWeb)
+  {
+    await Firebase.initializeApp(options: FirebaseOptions(apiKey: "AIzaSyBAqIGGEgTiwnAr34vLB8IJNpLZPN-uy54", appId: "1:463041342521:web:f27b62ea8909fcbe2b31e8", messagingSenderId: "463041342521", projectId: "pawnetwork-dd011"));
+  }
+  await Firebase.initializeApp();
   runApp(App());
 }
 
