@@ -21,12 +21,13 @@ class CommunityFeedScreen extends StatelessWidget {
     ),
     Post(
       userId: '3',
-      petName: 'Raya',
-      content: 'First bath ',
+      petName: 'Luna',
+      content: 'First day at puppy school 🎓',
       imageUrl: 'https://images.pexels.com/photos/1170986/pexels-photo-1170986.jpeg',
       timestamp: DateTime.now().subtract(Duration(hours: 9)),
-      likes: 82,
+      likes: 24,
     ),
+
   ];
 
   @override
