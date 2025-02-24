@@ -9,13 +9,40 @@ import 'package:pawnetwork/screens/community_feed_screen.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:pawnetwork/screens/main_screen.dart';
 import 'package:pawnetwork/screens/pet_profile_screen.dart';
+import 'package:pawnetwork/screens/signin_screen.dart';
 import 'package:pawnetwork/screens/signup_screen.dart';
 import 'package:mockito/annotations.dart';
-import 'package:mockito/mockito.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/widgets.dart';
 
+class MockFirebaseApp extends Mock implements FirebaseApp
+{
+  @override
+  final String name = 'mock_app';
+
+  @override
+  final FirebaseOptions options = const FirebaseOptions(
+    apiKey: 'mock_api_key',
+    appId: 'mock_app_id',
+    messagingSenderId: 'mock_messaging_sender_id',
+    projectId: 'mock_project_id',
+  );
+  @override
+  Future<void> delete() async {}
+
+  @override
+  Future<void> setAutomaticDataCollectionEnabled(bool enabled) async {}
+
+  @override
+  Future<void> setAutomaticResourceManagementEnabled(bool enabled) async {}
+
+  @override
+  bool get isAutomaticDataCollectionEnabled => false;
+
+  @override
+  bool get isAutomaticResourceManagementEnabled => false;
+}
 
 void main() {
   setUpAll(() => HttpOverrides.global = null);
@@ -23,6 +50,7 @@ void main() {
   setUp(() {
     mockFirebaseAuth = MockFirebaseAuth();
   });
+
 
   group('Pet Model Tests', () {
     test('Should create a Pet object correctly', () {
@@ -273,5 +301,83 @@ void main() {
       expect(find.byType(ElevatedButton), findsOneWidget);
     });
 
+  });
+  group('App Widget Tests', () {
+    testWidgets('App initializes and shows loading indicator', (WidgetTester tester) async {
+      await tester.pumpWidget(App());
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
+    testWidgets('App shows error when Firebase initialization fails', (WidgetTester tester) async {
+      // Mock Firebase initialization to throw an error
+      final mockFirebaseApp = MockFirebaseApp();
+      when(() => Firebase.initializeApp()).thenThrow(Exception('Initialization failed'));
+      await tester.pumpWidget(App());
+      await tester.pump();
+      // Expecting the error message on the screen
+      expect(find.text('Error: Exception: Initialization failed'), findsOneWidget);
+    });
+
+    testWidgets('App shows MyApp when Firebase initialization is done', (WidgetTester tester) async {
+      // Mock Firebase initialization to complete successfully
+      when(() => Firebase.initializeApp()).thenAnswer((_) async => MockFirebaseApp());
+
+      await tester.pumpWidget(App());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(MyApp), findsOneWidget);
+    });
+  });
+  group('MyApp Widget Tests', () {
+    testWidgets('MyApp shows SignInScreen when user is not authenticated', (WidgetTester tester) async {
+      // Mock FirebaseAuth to return null user
+      when(() => mockFirebaseAuth.authStateChanges()).thenAnswer((_) => Stream.value(null));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MyApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SignInScreen), findsOneWidget);
+    });
+
+    testWidgets('MyApp shows MainScreen when user is authenticated', (WidgetTester tester) async {
+      // Mock FirebaseAuth to return a user
+      final mockUser = MockUser(isAnonymous: false, uid: '123');
+      when(() => mockFirebaseAuth.authStateChanges()).thenAnswer((_) => Stream.value(mockUser));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MyApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(MainScreen), findsOneWidget);
+    });
+
+    testWidgets('MyApp navigates to SignInScreen when user logs out', (WidgetTester tester) async {
+      // Mock FirebaseAuth to return a user initially and then null after logout
+      final mockUser = MockUser(isAnonymous: false, uid: '123');
+      when(() => mockFirebaseAuth.authStateChanges()).thenAnswer((_) => Stream.value(mockUser));
+      when(() => mockFirebaseAuth.signOut()).thenAnswer((_) async {});
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MyApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Simulate logout
+      await tester.tap(find.byIcon(Icons.logout));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SignInScreen), findsOneWidget);
+    });
   });
 }

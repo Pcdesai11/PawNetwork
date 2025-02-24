@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:animations/animations.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as path;
+import 'package:flutter/foundation.dart'; // For kIsWeb
+import 'dart:html' as html; // Only used for web image picker
 
 class HomeScreen extends StatefulWidget {
   final Function? onAddPhoto;
@@ -9,9 +15,9 @@ class HomeScreen extends StatefulWidget {
 
   const HomeScreen({Key? key, this.onAddPhoto, this.addPhotoCallback}) : super(key: key);
 
-  void addPhoto(String path) {
+  void addPhoto(String url) {
     if (addPhotoCallback != null) {
-      addPhotoCallback!(path);
+      addPhotoCallback!(url);
     }
   }
 
@@ -22,9 +28,56 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   List<String> petPhotos = [];
 
-  void addPhoto(String path) {
+  Future<void> uploadImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile == null) return;
+
+    try {
+      Reference storageRef = FirebaseStorage.instance.ref().child('pet_photos/${path.basename(pickedFile.path)}');
+
+      UploadTask uploadTask;
+
+      if (kIsWeb) {
+        // Convert to Uint8List for Web
+        Uint8List imageData = await pickedFile.readAsBytes();
+        uploadTask = storageRef.putData(imageData, SettableMetadata(contentType: 'image/jpeg'));
+      } else {
+        // Mobile platforms (Android/iOS) can use putFile()
+        File imageFile = File(pickedFile.path);
+        uploadTask = storageRef.putFile(imageFile, SettableMetadata(contentType: 'image/jpeg'));
+      }
+
+      TaskSnapshot snapshot = await uploadTask;
+      String downloadUrl = await snapshot.ref.getDownloadURL();
+
+      setState(() {
+        petPhotos.add(downloadUrl);
+      });
+    } catch (e) {
+      print('Error uploading image: $e');
+    }
+  }
+
+
+
+  Future<void> _handleUpload(UploadTask uploadTask, Reference storageRef) async {
+    try {
+      TaskSnapshot snapshot = await uploadTask;
+      String downloadUrl = await snapshot.ref.getDownloadURL();
+
+      setState(() {
+        petPhotos.add(downloadUrl);
+      });
+    } catch (e) {
+      print('Error getting download URL: $e');
+    }
+  }
+
+  void addPhoto(String url) {
     setState(() {
-      petPhotos.add(path);
+      petPhotos.add(url);
     });
   }
 
@@ -33,7 +86,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       child: Stack(
         children: [
-
           Opacity(
             opacity: 0.3,
             child: Image.asset(
@@ -101,7 +153,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               vertical: 12,
                             ),
                           ),
-                          onPressed: widget.onAddPhoto as void Function()?,
+                          onPressed: uploadImage,
                         ),
                       ],
                     ),
@@ -124,8 +176,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               Hero(
                                 tag: 'photo_$index',
-                                child: Image.file(
-                                  File(petPhotos[index]),
+                                child: Image.network(
+                                  petPhotos[index],
                                   fit: BoxFit.cover,
                                 ),
                               ),
@@ -152,8 +204,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           body: Center(
                             child: Hero(
                               tag: 'photo_$index',
-                              child: Image.file(
-                                File(petPhotos[index]),
+                              child: Image.network(
+                                petPhotos[index], // 🔹 FIXED: Use Image.network()
                                 fit: BoxFit.contain,
                               ),
                             ),

@@ -17,6 +17,7 @@ Future<void> main() async {
         appId: "1:463041342521:web:f27b62ea8909fcbe2b31e8",
         messagingSenderId: "463041342521",
         projectId: "pawnetwork-dd011",
+        storageBucket:"gs://pawnetwork-dd011.firebasestorage.app",
       ),
     );
   } else {
