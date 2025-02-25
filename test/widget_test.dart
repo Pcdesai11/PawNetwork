@@ -304,7 +304,7 @@ void main() {
   });
   group('App Widget Tests', () {
     testWidgets('App initializes and shows loading indicator', (WidgetTester tester) async {
-      await tester.pumpWidget(App());
+      await tester.pumpWidget(MyApp());
       await tester.pump();
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -314,7 +314,7 @@ void main() {
       // Mock Firebase initialization to throw an error
       final mockFirebaseApp = MockFirebaseApp();
       when(() => Firebase.initializeApp()).thenThrow(Exception('Initialization failed'));
-      await tester.pumpWidget(App());
+      await tester.pumpWidget(MyApp());
       await tester.pump();
       // Expecting the error message on the screen
       expect(find.text('Error: Exception: Initialization failed'), findsOneWidget);
@@ -324,7 +324,7 @@ void main() {
       // Mock Firebase initialization to complete successfully
       when(() => Firebase.initializeApp()).thenAnswer((_) async => MockFirebaseApp());
 
-      await tester.pumpWidget(App());
+      await tester.pumpWidget(MyApp());
       await tester.pumpAndSettle();
 
       expect(find.byType(MyApp), findsOneWidget);

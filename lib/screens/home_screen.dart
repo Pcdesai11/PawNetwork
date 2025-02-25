@@ -31,20 +31,25 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> uploadImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      print("User not authenticated");
+      return;
+    }
+    String userId = user.uid;
+    print(userId);
+    String imageId = path.basename(pickedFile!.path);
+    print(imageId);
     if (pickedFile == null) return;
-
     try {
-      Reference storageRef = FirebaseStorage.instance.ref().child('pet_photos/${path.basename(pickedFile.path)}');
+      Reference storageRef = FirebaseStorage.instance.ref().child('posts/$userId/$imageId');
 
       UploadTask uploadTask;
 
       if (kIsWeb) {
-        // Convert to Uint8List for Web
         Uint8List imageData = await pickedFile.readAsBytes();
         uploadTask = storageRef.putData(imageData, SettableMetadata(contentType: 'image/jpeg'));
       } else {
-        // Mobile platforms (Android/iOS) can use putFile()
         File imageFile = File(pickedFile.path);
         uploadTask = storageRef.putFile(imageFile, SettableMetadata(contentType: 'image/jpeg'));
       }
