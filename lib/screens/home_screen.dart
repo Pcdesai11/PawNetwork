@@ -31,7 +31,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   List<Pet> pets = []; // List to store pet details
-  List<String> petPhotos = []; // List to store pet image URLs
 
   @override
   void initState() {
@@ -56,7 +55,6 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
   }
-
   Future<void> _deletePetProfile(String petId) async {
     try {
       // Delete the pet profile from Firestore
@@ -92,7 +90,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _handleUpload(UploadTask uploadTask, Reference storageRef) async {
     try {
       TaskSnapshot snapshot = await uploadTask;
+      print(snapshot);
       String downloadUrl = await snapshot.ref.getDownloadURL();
+      print(downloadUrl);
       setState(() {
         // Add the uploaded image URL to the pet photos list
         widget.petPhotos.add(downloadUrl);
@@ -120,7 +120,7 @@ class _HomeScreenState extends State<HomeScreen> {
     print(imageId);
     if (pickedFile == null) return;
     try {
-      Reference storageRef = FirebaseStorage.instance.ref().child('pets/$userId/$imageId');
+      Reference storageRef = FirebaseStorage.instance.ref().child('posts/$userId/$imageId');
       UploadTask uploadTask;
       if (kIsWeb) {
         // Web platform - handle image upload using bytes
@@ -140,8 +140,6 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
   }
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -168,7 +166,13 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: uploadImage,
+        onPressed: () async {
+          await uploadImage();
+          if (widget.onAddPhoto != null) {
+            widget.onAddPhoto!(widget.petPhotos.last);
+            print(widget.onAddPhoto);// Notify MainScreen of new photo
+          }
+        },
         child: Icon(Icons.add_a_photo),
         backgroundColor: Colors.pinkAccent,
       ),

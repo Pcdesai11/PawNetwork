@@ -1,6 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart'; // Replace image_picker with file_picker
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/pet.dart';
 import 'home_screen.dart';
@@ -18,7 +20,6 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
-  final ImagePicker _picker = ImagePicker();
   Pet? currentPet;
   List<String> petPhotos = []; // Store pet photos here
 
@@ -36,8 +37,8 @@ class _MainScreenState extends State<MainScreen> {
       HomeScreen(
         userId: widget.userId,
         pet: currentPet,
-        petPhotos: petPhotos, // Pass the photo list
-        onAddPhoto: _handleAddPhoto, // Pass the callback
+        petPhotos: petPhotos, // Ensure updated images are passed
+        onAddPhoto: _handleAddPhoto,
       ),
       PetProfileScreen(userId: widget.userId, pet: currentPet),
       CommunityFeedScreen(),
@@ -59,70 +60,68 @@ class _MainScreenState extends State<MainScreen> {
         if (currentPet?.imageUrl.isNotEmpty ?? false) {
           petPhotos.add(currentPet!.imageUrl);
         }
-        _screens = _buildScreens();
+        _screens = _buildScreens(); // Rebuild screens with updated data
       });
     }
   }
 
   Future<void> _handleAddPhoto(String imageUrl) async {
     setState(() {
-      petPhotos.add(imageUrl); // Update the photo list
+      _screens = _buildScreens(); // Rebuild screens with updated images
     });
-  }
-
-  Future<void> _pickImage() async {
-    if (kIsWeb) {
-      // Handle web-specific image picking
-      print("Image picking on web is not fully supported yet.");
-      return;
-    }
-
-    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      _handleAddPhoto(image.path); // Use the callback
-    }
+    print("photo url: ${petPhotos[0]}");
+    print("passed from handle photo");
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _screens,
+      appBar: AppBar(title: Text('Main Screen')),
+      body: Column(
+        children: [
+          if (petPhotos.isNotEmpty) // Show images if available
+            SizedBox(
+              height: 150, // Set height for image preview
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: petPhotos.length,
+                itemBuilder: (context, index)
+                {
+                  return Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: kIsWeb
+                          ? Image.network(
+                        petPhotos[index],
+                        height: 150,
+                        width: 100,
+                        fit: BoxFit.cover,
+                      )
+                          : Image.file(
+                        File(petPhotos[index]),
+                        height: 150,
+                        width: 100,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          Expanded(child: _screens[_selectedIndex]), // Show selected screen
+        ],
       ),
-      floatingActionButton: _selectedIndex == 0
-          ? FloatingActionButton(
-        onPressed: _pickImage,
-        child: Icon(Icons.add_a_photo),
-        backgroundColor: Colors.pinkAccent,
-      )
-          : null,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
-        selectedItemColor: Colors.pinkAccent,
-        unselectedItemColor: Colors.grey,
-        onTap: (index) async {
-          if (index == 1) {
-            final result = await Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => PetProfileScreen(userId: widget.userId, pet: currentPet),
-              ),
-            );
-            if (result is Pet) {
-              setState(() {
-                currentPet = result;
-                _screens = _buildScreens();
-              });
-            }
-          } else {
-            setState(() {
-              _selectedIndex = index;
-            });
-          }
+        onTap: (index) {
+          setState(() {
+            _selectedIndex = index;
+          });
         },
         items: [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.pets), label: 'Pet Profile'),
+          BottomNavigationBarItem(icon: Icon(Icons.pets), label: 'Profile'),
           BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Community'),
         ],
       ),
