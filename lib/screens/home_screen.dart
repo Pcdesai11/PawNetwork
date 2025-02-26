@@ -1,7 +1,15 @@
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../models/pet.dart';
+import 'package:path/path.dart' as path;
+import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
+import 'package:image_picker_for_web/image_picker_for_web.dart';
 
 class HomeScreen extends StatefulWidget {
   final String? userId;
@@ -23,6 +31,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   List<Pet> pets = []; // List to store pet details
+  List<String> petPhotos = []; // List to store pet image URLs
 
   @override
   void initState() {
@@ -80,6 +89,58 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
   }
+  Future<void> _handleUpload(UploadTask uploadTask, Reference storageRef) async {
+    try {
+      TaskSnapshot snapshot = await uploadTask;
+      String downloadUrl = await snapshot.ref.getDownloadURL();
+      setState(() {
+        // Add the uploaded image URL to the pet photos list
+        widget.petPhotos.add(downloadUrl);
+      });
+      // Optionally, show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Image uploaded successfully!")),
+      );
+    } catch (e) {
+      print('Error getting download URL: $e');
+    }
+  }
+
+  Future<void> uploadImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      print("User not authenticated");
+      return;
+    }
+    String userId = user.uid;
+    print(userId);
+    String imageId = path.basename(pickedFile!.path);
+    print(imageId);
+    if (pickedFile == null) return;
+    try {
+      Reference storageRef = FirebaseStorage.instance.ref().child('pets/$userId/$imageId');
+      UploadTask uploadTask;
+      if (kIsWeb) {
+        // Web platform - handle image upload using bytes
+        Uint8List imageData = await pickedFile.readAsBytes();
+        uploadTask = storageRef.putData(imageData, SettableMetadata(contentType: 'image/jpeg'));
+      } else {
+        // Mobile platform - handle image upload from file
+        File imageFile = File(pickedFile.path);
+        uploadTask = storageRef.putFile(imageFile, SettableMetadata(contentType: 'image/jpeg'));
+      }
+      // Handle the upload task and get the download URL
+      await _handleUpload(uploadTask, storageRef);
+    } catch (e) {
+      print('Error uploading image: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error uploading image!")),
+      );
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -107,11 +168,7 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          if (widget.onAddPhoto != null) {
-            widget.onAddPhoto!('new_image_url');
-          }
-        },
+        onPressed: uploadImage,
         child: Icon(Icons.add_a_photo),
         backgroundColor: Colors.pinkAccent,
       ),
