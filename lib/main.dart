@@ -17,8 +17,7 @@ Future<void> main() async {
         appId: "1:463041342521:web:f27b62ea8909fcbe2b31e8",
         messagingSenderId: "463041342521",
         projectId: "pawnetwork-dd011",
-        storageBucket:"gs://pawnetwork-dd011.firebasestorage.app",
-
+        storageBucket: "gs://pawnetwork-dd011.firebasestorage.app",
       ),
     );
   } else {
@@ -56,7 +55,6 @@ class MyApp extends StatelessWidget {
             borderSide: BorderSide(color: Colors.red),
           ),
         ),
-
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: Color(0xFF8E2DE2),
@@ -68,13 +66,11 @@ class MyApp extends StatelessWidget {
             minimumSize: Size(double.infinity, 50),
           ),
         ),
-
         textButtonTheme: TextButtonThemeData(
           style: TextButton.styleFrom(
             foregroundColor: Color(0xFF8E2DE2),
           ),
         ),
-
         colorScheme: ColorScheme.fromSeed(
           seedColor: Color(0xFF8E2DE2),
           primary: Color(0xFF8E2DE2),
@@ -86,18 +82,12 @@ class MyApp extends StatelessWidget {
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8E2DE2)),
-              ),
-            );
+            return LoadingScreen();
           }
-
 
           if (snapshot.hasData) {
-            return MainScreen();
+            return MainScreen(userId: snapshot.data!.uid); // ✅ Fixed: Pass userId
           }
-
 
           return SignInScreen();
         },
@@ -105,13 +95,24 @@ class MyApp extends StatelessWidget {
       routes: {
         '/signin': (context) => SignInScreen(),
         '/signup': (context) => SignUpScreen(),
-        '/main': (context) => MainScreen(),
-        '/pet-profile': (context) => PetProfileScreen(),
+        '/main': (context) {
+          final user = FirebaseAuth.instance.currentUser;
+          if (user != null) {
+            return MainScreen(userId: user.uid); // ✅ Fixed: Ensure userId is passed
+          }
+          return SignInScreen();
+        },
+        '/pet-profile': (context) {
+          final user = FirebaseAuth.instance.currentUser;
+          if (user != null) {
+            return PetProfileScreen(userId: user.uid); // ✅ Fixed: Ensure userId is passed
+          }
+          return SignInScreen();
+        },
       },
     );
   }
 }
-
 
 class LoadingScreen extends StatelessWidget {
   @override

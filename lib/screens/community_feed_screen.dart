@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../models/post.dart';
 import '../../models/comment.dart';
 import '../../services/post_service.dart';
+import 'create_post_screen.dart'; // Import the new screen
 
 class CommunityFeedScreen extends StatefulWidget {
   @override
@@ -26,7 +27,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
       await _postService.toggleLike(post.id);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to like post. Please try again.')),
+        SnackBar(content: Text('Failed to like post: ${e.toString()}')),
       );
     }
   }
@@ -34,12 +35,12 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
   Future<void> _handleShare(Post post) async {
     try {
       await Share.share(
-        'Check out ${post.petName}\'s post on PawNetwork!\n${post.imageUrl}',
+        'Check out ${post.petName}\'s post on PawNetwork!\n${post.imageUrl ?? ""}',
         subject: 'PawNetwork Post',
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to share post. Please try again.')),
+        SnackBar(content: Text('Failed to share post: ${e.toString()}')),
       );
     }
   }
@@ -69,13 +70,26 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
               stream: _postService.getCommentsStream(post.id),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  return Center(child: Text('Error loading comments'));
+                  print('Comment error: ${snapshot.error}');
+                  return Center(child: Text('Error loading comments: ${snapshot.error.toString().substring(0, 100)}'));
                 }
                 if (!snapshot.hasData) {
                   return Center(child: CircularProgressIndicator());
                 }
 
                 final comments = snapshot.data!;
+                if (comments.isEmpty) {
+                  return Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Center(
+                      child: Text(
+                        'No comments yet. Be the first to comment!',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                  );
+                }
+
                 return Expanded(
                   child: ListView.builder(
                     itemCount: comments.length,
@@ -118,12 +132,12 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                       try {
                         await _postService.addComment(
                           post.id,
-                          _commentController.text,
+                          _commentController.text.trim(),
                         );
                         _commentController.clear();
                       } catch (e) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Failed to post comment')),
+                          SnackBar(content: Text('Failed to post comment: ${e.toString()}')),
                         );
                       }
                     },
@@ -156,17 +170,64 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
       appBar: AppBar(
         title: Text('PawNetwork Feed'),
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => CreatePostScreen()),
+          );
+        },
+        child: Icon(Icons.add),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+      ),
       body: StreamBuilder<List<Post>>(
         stream: _postsStream,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text('Error loading posts'));
+            print('Feed error: ${snapshot.error}');
+            return Center(child: Text('Error loading posts: ${snapshot.error}'));
           }
           if (!snapshot.hasData) {
             return Center(child: CircularProgressIndicator());
           }
 
           final posts = snapshot.data!;
+          if (posts.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.pets,
+                    size: 64,
+                    color: Colors.grey[400],
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'No posts yet',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Be the first to share your pet\'s adventures!',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                  SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => CreatePostScreen()),
+                      );
+                    },
+                    icon: Icon(Icons.add),
+                    label: Text('Create Post'),
+                  )
+                ],
+              ),
+            );
+          }
+
           return RefreshIndicator(
             onRefresh: () => _postService.refreshPosts(),
             child: ListView.builder(
@@ -196,7 +257,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                             onPressed: () {},
                           ),
                         ),
-                        if (post.imageUrl != null)
+                        if (post.imageUrl != null && post.imageUrl!.isNotEmpty)
                           Container(
                             height: 200,
                             width: double.infinity,

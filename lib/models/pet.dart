@@ -1,5 +1,5 @@
-
 class Pet {
+  final String id; // Add this field
   final String name;
   final String breed;
   final int age;
@@ -7,6 +7,7 @@ class Pet {
   final String description;
 
   Pet({
+    required this.id, // Add this parameter
     required this.name,
     required this.breed,
     required this.age,
@@ -14,6 +15,16 @@ class Pet {
     required this.description,
   });
 
+  factory Pet.fromMap(Map<String, dynamic> map, {required String id}) {
+    return Pet(
+      id: id, // Ensure the ID is always provided
+      name: map['name'] ?? '',
+      breed: map['breed'] ?? '',
+      age: map['age'] ?? 0,
+      imageUrl: map['imageUrl'] ?? '',
+      description: map['description'] ?? '',
+    );
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -23,16 +34,5 @@ class Pet {
       'imageUrl': imageUrl,
       'description': description,
     };
-  }
-
-
-  factory Pet.fromMap(Map<String, dynamic> map) {
-    return Pet(
-      name: map['name'] ?? '',
-      breed: map['breed'] ?? '',
-      age: map['age']?.toInt() ?? 0,
-      imageUrl: map['imageUrl'] ?? '',
-      description: map['description'] ?? '',
-    );
   }
 }

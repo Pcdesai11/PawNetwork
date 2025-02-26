@@ -1,229 +1,185 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:io';
-import 'dart:typed_data';
-import 'package:animations/animations.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:path/path.dart' as path;
-import 'package:flutter/foundation.dart'; // For kIsWeb
-import 'dart:html' as html; // Only used for web image picker
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../models/pet.dart';
 
 class HomeScreen extends StatefulWidget {
-  final Function? onAddPhoto;
-  final Function(String)? addPhotoCallback;
+  final String? userId;
+  final Pet? pet;
+  final List<String> petPhotos;
+  final Function(String)? onAddPhoto;
 
-  const HomeScreen({Key? key, this.onAddPhoto, this.addPhotoCallback}) : super(key: key);
-
-  void addPhoto(String url) {
-    if (addPhotoCallback != null) {
-      addPhotoCallback!(url);
-    }
-  }
+  const HomeScreen({
+    Key? key,
+    this.userId,
+    this.pet,
+    required this.petPhotos,
+    this.onAddPhoto,
+  }) : super(key: key);
 
   @override
   _HomeScreenState createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<String> petPhotos = [];
+  List<Pet> pets = []; // List to store pet details
 
-  Future<void> uploadImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      print("User not authenticated");
-      return;
-    }
-    String userId = user.uid;
-    print(userId);
-    String imageId = path.basename(pickedFile!.path);
-    print(imageId);
-    if (pickedFile == null) return;
-    try {
-      Reference storageRef = FirebaseStorage.instance.ref().child('posts/$userId/$imageId');
+  @override
+  void initState() {
+    super.initState();
+    _loadPetProfile();
+  }
 
-      UploadTask uploadTask;
+  Future<void> _loadPetProfile() async {
+    if (widget.userId == null) return;
 
-      if (kIsWeb) {
-        Uint8List imageData = await pickedFile.readAsBytes();
-        uploadTask = storageRef.putData(imageData, SettableMetadata(contentType: 'image/jpeg'));
-      } else {
-        File imageFile = File(pickedFile.path);
-        uploadTask = storageRef.putFile(imageFile, SettableMetadata(contentType: 'image/jpeg'));
-      }
+    final petSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.userId)
+        .collection('pets')
+        .get();
 
-      TaskSnapshot snapshot = await uploadTask;
-      String downloadUrl = await snapshot.ref.getDownloadURL();
-
+    if (petSnapshot.docs.isNotEmpty) {
       setState(() {
-        petPhotos.add(downloadUrl);
+        pets = petSnapshot.docs.map((doc) {
+          return Pet.fromMap(doc.data(), id: doc.id); // Pass the document ID
+        }).toList();
       });
-    } catch (e) {
-      print('Error uploading image: $e');
     }
   }
 
-
-
-  Future<void> _handleUpload(UploadTask uploadTask, Reference storageRef) async {
+  Future<void> _deletePetProfile(String petId) async {
     try {
-      TaskSnapshot snapshot = await uploadTask;
-      String downloadUrl = await snapshot.ref.getDownloadURL();
+      // Delete the pet profile from Firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userId)
+          .collection('pets')
+          .doc(petId)
+          .delete();
 
+      // Immediately remove the deleted pet from the local list
       setState(() {
-        petPhotos.add(downloadUrl);
+        pets.removeWhere((pet) => pet.id == petId);
       });
-    } catch (e) {
-      print('Error getting download URL: $e');
-    }
-  }
 
-  void addPhoto(String url) {
-    setState(() {
-      petPhotos.add(url);
-    });
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Pet profile deleted!'),
+          backgroundColor: Colors.pinkAccent,
+        ),
+      );
+    } catch (e) {
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      child: Stack(
-        children: [
-          Opacity(
-            opacity: 0.3,
-            child: Image.asset(
-              'assets/paw_background.png',
-              fit: BoxFit.cover,
-              height: double.infinity,
-              width: double.infinity,
-            ),
-          ),
-          SafeArea(
-            child: Column(
-              children: [
-                Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'My Pet Photos',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          fontFamily: 'Comic Sans MS',
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.logout, color: Colors.white),
-                        onPressed: () async {
-                          await FirebaseAuth.instance.signOut();
-                          Navigator.pushReplacementNamed(context, '/signin');
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: petPhotos.isEmpty
-                      ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.pets,
-                          size: 100,
-                          color: Colors.white.withOpacity(0.5),
-                        ),
-                        SizedBox(height: 16),
-                        Text(
-                          'No pet photos yet',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                          ),
-                        ),
-                        SizedBox(height: 24),
-                        ElevatedButton.icon(
-                          icon: Icon(Icons.add_a_photo),
-                          label: Text('Add Your First Photo'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Color(0xFF8E2DE2),
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                          ),
-                          onPressed: uploadImage,
-                        ),
-                      ],
-                    ),
-                  )
-                      : GridView.builder(
-                    padding: EdgeInsets.all(16),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                    ),
-                    itemCount: petPhotos.length,
-                    itemBuilder: (context, index) {
-                      return OpenContainer(
-                        closedElevation: 0,
-                        closedBuilder: (context, openContainer) => ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              Hero(
-                                tag: 'photo_$index',
-                                child: Image.network(
-                                  petPhotos[index],
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: IconButton(
-                                  icon: Icon(
-                                    Icons.delete,
-                                    color: Colors.white,
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      petPhotos.removeAt(index);
-                                    });
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        openBuilder: (context, closeContainer) => Scaffold(
-                          backgroundColor: Colors.black,
-                          body: Center(
-                            child: Hero(
-                              tag: 'photo_$index',
-                              child: Image.network(
-                                petPhotos[index], // 🔹 FIXED: Use Image.network()
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('My Pets'),
+        backgroundColor: Colors.pinkAccent,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              Navigator.pushReplacementNamed(context, '/signin');
+            },
           ),
         ],
+      ),
+      body: pets.isEmpty
+          ? _buildEmptyState()
+          : ListView.builder(
+        padding: EdgeInsets.all(16),
+        itemCount: pets.length,
+        itemBuilder: (context, index) {
+          return _buildPetCard(pets[index]);
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          if (widget.onAddPhoto != null) {
+            widget.onAddPhoto!('new_image_url');
+          }
+        },
+        child: Icon(Icons.add_a_photo),
+        backgroundColor: Colors.pinkAccent,
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Text('No pets added yet.'),
+    );
+  }
+
+  Widget _buildPetCard(Pet pet) {
+    return Card(
+      elevation: 4,
+      margin: EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (pet.imageUrl.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  pet.imageUrl,
+                  height: 150,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            SizedBox(height: 12),
+            Text(
+              pet.name,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.pinkAccent,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Breed: ${pet.breed}',
+              style: TextStyle(fontSize: 16),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Age: ${pet.age} years',
+              style: TextStyle(fontSize: 16),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Description: ${pet.description}',
+              style: TextStyle(fontSize: 16),
+            ),
+            SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                icon: Icon(Icons.delete, color: Colors.red),
+                onPressed: () => _deletePetProfile(pet.id),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
