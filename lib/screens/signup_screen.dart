@@ -65,6 +65,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    CircleAvatar(
+                      radius: 60,
+                      backgroundImage: AssetImage('assets/app_logo.png'),
+                    ),
+                    SizedBox(height: 20),
                     Text(
                       'Create Account',
                       style: TextStyle(

@@ -304,7 +304,7 @@ void main() {
   });
   group('App Widget Tests', () {
     testWidgets('App initializes and shows loading indicator', (WidgetTester tester) async {
-      await tester.pumpWidget(MyApp());
+      await tester.pumpWidget(App());
       await tester.pump();
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);

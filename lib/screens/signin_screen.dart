@@ -27,7 +27,7 @@ class _SignInScreenState extends State<SignInScreen> {
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
-        Navigator.pushReplacementNamed(context, '/home');
+        Navigator.pushReplacementNamed(context, '/main');
       } on FirebaseAuthException catch (e) {
         setState(() {
           errorMessage = e.message ?? 'An error occurred';
@@ -52,6 +52,11 @@ class _SignInScreenState extends State<SignInScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  CircleAvatar(
+                    radius: 60,
+                    backgroundImage: AssetImage('assets/app_logo.png'),
+                  ),
+                  SizedBox(height: 20),
                   Text(
                     'Welcome Back',
                     style: TextStyle(
