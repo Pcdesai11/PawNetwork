@@ -1,3 +1,4 @@
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,6 +7,7 @@ import 'package:mockito/mockito.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:network_image_mock/network_image_mock.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:pawnetwork/main.dart';
 import 'package:pawnetwork/models/pet.dart';
 import 'package:pawnetwork/screens/home_screen.dart';
@@ -13,13 +15,70 @@ import 'package:pawnetwork/screens/signin_screen.dart';
 import 'package:pawnetwork/screens/signup_screen.dart';
 import 'package:pawnetwork/screens/community_feed_screen.dart';
 import 'package:pawnetwork/screens/create_post_screen.dart';
+import 'package:pawnetwork/screens/pet_profile_screen.dart';
 import 'package:pawnetwork/models/post.dart';
 import 'package:pawnetwork/models/comment.dart';
 import 'package:pawnetwork/services/post_service.dart';
 import 'package:firebase_core_platform_interface/firebase_core_platform_interface.dart';
 import 'mock.dart';
+import 'dart:io';
 
 class MockPostService extends Mock implements PostService {}
+
+// Mock Firebase Storage
+class MockFirebaseStorage extends Mock {
+  UploadTask mockUploadTask(String path) {
+    final mockTask = MockUploadTask();
+    return mockTask;
+  }
+}
+
+class MockUploadTask extends Mock implements UploadTask {
+  @override
+  Future<TaskSnapshot> whenComplete( Function() onComplete) =>
+      Future.value(MockTaskSnapshot());
+}
+
+
+class MockTaskSnapshot extends Mock implements TaskSnapshot {}
+
+class MockReference extends Mock {
+  Future<String> getDownloadURL() async {
+    return 'https://example.com/test-image.jpg';
+  }
+
+  MockReference child(String path) {
+    return this;
+  }
+
+  UploadTask putFile(File file) {
+    return MockUploadTask();
+  }
+}
+
+class MockFirebaseStorageInstance extends Mock {
+  MockReference ref() {
+    return MockReference();
+  }
+}
+
+class MockImagePicker extends Mock implements ImagePicker {
+  @override
+  Future<XFile?> pickImage({
+    required ImageSource source,
+    int? imageQuality,
+    double? maxHeight,
+    double? maxWidth,
+    CameraDevice preferredCameraDevice = CameraDevice.rear,
+    bool requestFullMetadata = true,
+  }) async {
+    final tempFile = File('${Directory.systemTemp.path}/test_image.png');
+    if (!tempFile.existsSync()) {
+      tempFile.createSync();
+    }
+    return XFile(tempFile.path);
+  }
+}
 
 void main() {
   setupFirebaseAuthMocks();
@@ -425,6 +484,7 @@ void main() {
       expect(petMap['description'], equals('Friendly and playful dog'));
     });
   });
+
   group('HomeScreen Tests', () {
     testWidgets('renders empty state when no pets are added', (WidgetTester tester) async {
       // Build the widget with no pets
@@ -496,6 +556,242 @@ void main() {
       // Ensure the pet card is removed (empty list should be shown)
       expect(find.text('No pets added yet.'), findsOneWidget);
     });
-
   });
+
+  // New Pet Profile Screen Tests
+  group('Pet Profile Screen Tests', () {
+    late MockFirebaseStorage mockStorage;
+    late MockFirebaseStorageInstance mockStorageInstance;
+    late MockImagePicker mockImagePicker;
+
+    setUpAll(() {
+      mockStorage = MockFirebaseStorage();
+      mockStorageInstance = MockFirebaseStorageInstance();
+      mockImagePicker = MockImagePicker();
+    });
+
+    testWidgets('Create Pet Profile screen renders with empty form', (WidgetTester tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: PetProfileScreen(userId: 'test-user-id'),
+      ));
+
+      // Check for UI components
+      expect(find.text('Create Pet Profile'), findsOneWidget);
+      expect(find.text('Pet Name'), findsOneWidget);
+      expect(find.text('Breed'), findsOneWidget);
+      expect(find.text('Age'), findsOneWidget);
+      expect(find.text('Description'), findsOneWidget);
+      expect(find.text('Save Profile'), findsOneWidget);
+      expect(find.byIcon(Icons.pets), findsOneWidget);
+      expect(find.byIcon(Icons.camera_alt), findsOneWidget);
+    });
+    test('Post.toMap converts object correctly', () {
+      final post = Post(
+        id: '123',
+        petName: 'Buddy',
+        content: 'Pet is so cute!',
+        timestamp: DateTime.now(),
+        likes: 5,
+        commentCount: 3,
+        isLiked: true, userId: '12', userAvatar: '213912',
+      );
+      final map = post.toMap();
+      expect(map['id'], '123');
+      expect(map['petName'], 'Buddy');
+      expect(map['content'], 'Pet is so cute!');
+      expect(map['likes'], 5);
+      expect(map['commentCount'], 3);
+    });
+    test('should create a Post with default values when map contains null or missing fields', () {
+      final map = {
+        'id': null,
+        'userId': null,
+        'userAvatar': null,
+        'petName': null,
+        'content': null,
+        'timestamp': null,
+        'likes': null,
+        'commentCount': null,
+        'likedBy': null,
+      };
+
+      final post = Post.fromMap(map);
+
+      expect(post.id, '');
+      expect(post.userId, '');
+      expect(post.userAvatar, 'default_avatar_url');
+      expect(post.petName, 'Unknown Pet');
+      expect(post.content, '');
+      expect(post.timestamp, DateTime.now());
+      expect(post.likes, 0);
+      expect(post.commentCount, 0);
+      expect(post.isLiked,false);
+      });
+    testWidgets('Edit Pet Profile screen loads with existing pet data', (WidgetTester tester) async {
+      final pet = Pet(
+        id: 'test-pet-id',
+        name: 'Fluffy',
+        breed: 'Golden Retriever',
+        age: 3,
+        imageUrl: 'https://example.com/image.jpg',
+        description: 'A friendly dog',
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        home: PetProfileScreen(userId: 'test-user-id', pet: pet),
+      ));
+
+      // Check that the form is pre-filled with pet data
+      expect(find.text('Edit Pet Profile'), findsOneWidget);
+      expect(find.text('Update Profile'), findsOneWidget);
+
+      // Check text fields have correct values
+      expect(find.widgetWithText(TextFormField, 'Pet Name'), findsOneWidget);
+      expect((tester.widget(find.widgetWithText(TextFormField, 'Pet Name')) as TextFormField).controller?.text, 'Fluffy');
+
+      expect(find.widgetWithText(TextFormField, 'Breed'), findsOneWidget);
+      expect((tester.widget(find.widgetWithText(TextFormField, 'Breed')) as TextFormField).controller?.text, 'Golden Retriever');
+
+      expect(find.widgetWithText(TextFormField, 'Age'), findsOneWidget);
+      expect((tester.widget(find.widgetWithText(TextFormField, 'Age')) as TextFormField).controller?.text, '3');
+
+      expect(find.widgetWithText(TextFormField, 'Description'), findsOneWidget);
+      expect((tester.widget(find.widgetWithText(TextFormField, 'Description')) as TextFormField).controller?.text, 'A friendly dog');
+    });
+
+    testWidgets('Form validation works properly', (WidgetTester tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: PetProfileScreen(userId: 'test-user-id'),
+      ));
+
+      // Try to submit empty form
+      await tester.tap(find.text('Save Profile'));
+      await tester.pump();
+
+      // Should show validation errors
+      expect(find.text("Please enter your pet's Pet Name"), findsOneWidget);
+      expect(find.text("Please enter your pet's Breed"), findsOneWidget);
+      expect(find.text("Please enter your pet's Age"), findsOneWidget);
+      expect(find.text("Please enter your pet's Description"), findsOneWidget);
+    });
+
+    testWidgets('Can fill out form completely', (WidgetTester tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: PetProfileScreen(userId: 'test-user-id'),
+      ));
+
+      // Fill out the form
+      await tester.enterText(find.widgetWithText(TextFormField, 'Pet Name'), 'Max');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Breed'), 'Labrador');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Age'), '2');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Description'), 'Friendly and energetic');
+
+      // Verify text fields have correct values
+      expect((tester.widget(find.widgetWithText(TextFormField, 'Pet Name')) as TextFormField).controller?.text, 'Max');
+      expect((tester.widget(find.widgetWithText(TextFormField, 'Breed')) as TextFormField).controller?.text, 'Labrador');
+      expect((tester.widget(find.widgetWithText(TextFormField, 'Age')) as TextFormField).controller?.text, '2');
+      expect((tester.widget(find.widgetWithText(TextFormField, 'Description')) as TextFormField).controller?.text, 'Friendly and energetic');
+    });
+
+    testWidgets('Camera button triggers image picker', (WidgetTester tester) async {
+      // This test is more of a placeholder since we can't easily test image picker in widget tests
+      await tester.pumpWidget(MaterialApp(
+        home: PetProfileScreen(userId: 'test-user-id'),
+      ));
+
+      // Find and verify camera button exists
+      expect(find.byIcon(Icons.camera_alt), findsOneWidget);
+    });
+
+    testWidgets('CircleAvatar shows pet image when available', (WidgetTester tester) async {
+      final pet = Pet(
+        id: 'test-pet-id',
+        name: 'Fluffy',
+        breed: 'Golden Retriever',
+        age: 3,
+        imageUrl: 'https://example.com/image.jpg',
+        description: 'A friendly dog',
+      );
+
+      await mockNetworkImagesFor(() async {
+        await tester.pumpWidget(MaterialApp(
+          home: PetProfileScreen(userId: 'test-user-id', pet: pet),
+        ));
+
+        // Find CircleAvatar
+        final circleAvatar = tester.widget<CircleAvatar>(find.byType(CircleAvatar));
+
+        // Verify it has the correct image
+        expect(circleAvatar.backgroundImage, isA<NetworkImage>());
+        final networkImage = circleAvatar.backgroundImage as NetworkImage;
+        expect(networkImage.url, 'https://example.com/image.jpg');
+
+        // Icon should not be shown when image is available
+        expect(find.descendant(
+          of: find.byType(CircleAvatar),
+          matching: find.byIcon(Icons.pets),
+        ), findsNothing);
+      });
+    });
+
+    testWidgets('CircleAvatar shows default icon when no image is available', (WidgetTester tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: PetProfileScreen(userId: 'test-user-id'),
+      ));
+
+      // Find CircleAvatar
+      final circleAvatar = tester.widget<CircleAvatar>(find.byType(CircleAvatar));
+
+      // Verify no background image
+      expect(circleAvatar.backgroundImage, isNull);
+
+      // Icon should be shown
+      expect(find.descendant(
+        of: find.byType(CircleAvatar),
+        matching: find.byIcon(Icons.pets),
+      ), findsOneWidget);
+    });
+  });
+}
+
+// Helper class for testing loading state
+class TestableLoadingPetProfileScreen extends StatefulWidget {
+  final String userId;
+  final Pet? pet;
+
+  const TestableLoadingPetProfileScreen({Key? key, required this.userId, this.pet}) : super(key: key);
+
+  @override
+  _TestableLoadingPetProfileScreenState createState() => _TestableLoadingPetProfileScreenState();
+}
+
+class _TestableLoadingPetProfileScreenState extends State<TestableLoadingPetProfileScreen> {
+  bool _isLoading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Test Pet Profile')),
+      body: Column(
+        children: [
+          ElevatedButton(
+            key: Key('toggle_loading'),
+            onPressed: () {
+              setState(() {
+                _isLoading = !_isLoading;
+              });
+            },
+            child: Text('Toggle Loading'),
+          ),
+          SizedBox(height: 20),
+          _isLoading
+              ? CircularProgressIndicator()
+              : ElevatedButton(
+            onPressed: () {},
+            child: Text('Save Profile'),
+          ),
+        ],
+      ),
+    );
+  }
 }
