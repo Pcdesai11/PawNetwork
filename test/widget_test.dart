@@ -22,6 +22,7 @@ import 'package:pawnetwork/services/post_service.dart';
 import 'package:firebase_core_platform_interface/firebase_core_platform_interface.dart';
 import 'mock.dart';
 import 'dart:io';
+import 'package:pawnetwork/screens/main_screen.dart';
 
 class MockPostService extends Mock implements PostService {}
 
@@ -727,6 +728,116 @@ void main() {
           of: find.byType(CircleAvatar),
           matching: find.byIcon(Icons.pets),
         ), findsNothing);
+      });
+    });
+    group('MainScreen Widget Tests', () {
+      late FakeFirebaseFirestore fakeFirestore;
+      late String userId;
+
+      setUp(() {
+        fakeFirestore = FakeFirebaseFirestore();
+        userId = 'test-user-id';
+      });
+
+      testWidgets('MainScreen initializes with correct default state', (WidgetTester tester) async {
+        await tester.pumpWidget(MaterialApp(
+          home: MainScreen(userId: userId),
+        ));
+
+        // Verify that the initial screen is the HomeScreen
+        expect(find.byType(HomeScreen), findsOneWidget);
+        expect(find.byType(PetProfileScreen), findsNothing);
+        expect(find.byType(CommunityFeedScreen), findsNothing);
+
+        // Verify that the bottom navigation bar is present
+        expect(find.byType(BottomNavigationBar), findsOneWidget);
+      });
+
+      testWidgets('MainScreen navigates to PetProfileScreen when profile tab is tapped', (WidgetTester tester) async {
+        await tester.pumpWidget(MaterialApp(
+          home: MainScreen(userId: userId),
+        ));
+
+        // Tap on the profile tab
+        await tester.tap(find.text('Profile'));
+        await tester.pumpAndSettle();
+
+        // Verify that the PetProfileScreen is displayed
+        expect(find.byType(PetProfileScreen), findsOneWidget);
+        expect(find.byType(HomeScreen), findsNothing);
+        expect(find.byType(CommunityFeedScreen), findsNothing);
+      });
+
+      testWidgets('MainScreen navigates to CommunityFeedScreen when community tab is tapped', (WidgetTester tester) async {
+        await tester.pumpWidget(MaterialApp(
+          home: MainScreen(userId: userId),
+        ));
+
+        // Tap on the community tab
+        await tester.tap(find.text('Community'));
+        await tester.pumpAndSettle();
+
+        // Verify that the CommunityFeedScreen is displayed
+        expect(find.byType(CommunityFeedScreen), findsOneWidget);
+        expect(find.byType(HomeScreen), findsNothing);
+        expect(find.byType(PetProfileScreen), findsNothing);
+      });
+
+      testWidgets('MainScreen fetches and displays pet profile data', (WidgetTester tester) async {
+        // Add a pet profile to the fake Firestore
+        await fakeFirestore.collection('users').doc(userId).collection('pets').add({
+          'name': 'Fluffy',
+          'breed': 'Golden Retriever',
+          'age': 3,
+          'imageUrl': 'https://example.com/image.jpg',
+          'description': 'A friendly dog',
+        });
+
+        await tester.pumpWidget(MaterialApp(
+          home: MainScreen(userId: userId),
+        ));
+
+        // Wait for the data to be fetched
+        await tester.pumpAndSettle();
+
+        // Verify that the pet profile data is displayed in the HomeScreen
+        expect(find.text('Fluffy'), findsOneWidget);
+        expect(find.text('Breed: Golden Retriever'), findsOneWidget);
+        expect(find.text('Age: 3'), findsOneWidget);
+        expect(find.text('Description: A friendly dog'), findsOneWidget);
+      });
+
+      testWidgets('MainScreen displays image preview when pet photos are available', (WidgetTester tester) async {
+        // Add a pet profile with an image URL to the fake Firestore
+        await fakeFirestore.collection('users').doc(userId).collection('pets').add({
+          'name': 'Fluffy',
+          'breed': 'Golden Retriever',
+          'age': 3,
+          'imageUrl': 'https://example.com/image.jpg',
+          'description': 'A friendly dog',
+        });
+
+        await tester.pumpWidget(MaterialApp(
+          home: MainScreen(userId: userId),
+        ));
+
+        // Wait for the data to be fetched
+        await tester.pumpAndSettle();
+
+        // Verify that the image preview is displayed
+        expect(find.byType(Image), findsOneWidget);
+      });
+
+      testWidgets('MainScreen handles empty pet profile state', (WidgetTester tester) async {
+        await tester.pumpWidget(MaterialApp(
+          home: MainScreen(userId: userId),
+        ));
+
+        // Wait for the data to be fetched
+        await tester.pumpAndSettle();
+
+        // Verify that no pet profile data is displayed
+        expect(find.text('No pets added yet.'), findsOneWidget);
       });
     });
 
