@@ -7,6 +7,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:network_image_mock/network_image_mock.dart';
 import 'package:pawnetwork/main.dart';
+import 'package:pawnetwork/models/pet.dart';
+import 'package:pawnetwork/screens/home_screen.dart';
 import 'package:pawnetwork/screens/signin_screen.dart';
 import 'package:pawnetwork/screens/signup_screen.dart';
 import 'package:pawnetwork/screens/community_feed_screen.dart';
@@ -173,10 +175,10 @@ void main() {
       expect(find.byIcon(Icons.pets), findsOneWidget);
       expect(find.text('Create Post'), findsOneWidget);
     });
-
     testWidgets('Floating Action Button navigates to Create Post screen', (WidgetTester tester) async {
+      // Set up the mock response before rendering the widget
       when(mockPostService.getPostsStream()).thenAnswer((_) => Stream.value(mockPosts));
-
+      // Use mockNetworkImagesFor only for the image mocking part
       await mockNetworkImagesFor(() async {
         await tester.pumpWidget(MaterialApp(
           home: CommunityFeedScreen(),
@@ -195,6 +197,7 @@ void main() {
         expect(find.byType(CreatePostScreen), findsOneWidget);
       });
     });
+
   });
 
   group('Create Post Screen Tests', () {
@@ -324,5 +327,175 @@ void main() {
       expect(map['content'], 'Great post!');
       expect(map['timestamp'], now.millisecondsSinceEpoch);
     });
+  });
+
+  group('Pet Class Tests', () {
+    test('Pet constructor creates a valid Pet object', () {
+      // Arrange
+      final petId = '123';
+      final petName = 'Buddy';
+      final petBreed = 'Golden Retriever';
+      final petAge = 5;
+      final petImageUrl = 'https://example.com/image.jpg';
+      final petDescription = 'Friendly and playful dog';
+
+      // Act
+      final pet = Pet(
+        id: petId,
+        name: petName,
+        breed: petBreed,
+        age: petAge,
+        imageUrl: petImageUrl,
+        description: petDescription,
+      );
+
+      // Assert
+      expect(pet.id, equals(petId));
+      expect(pet.name, equals(petName));
+      expect(pet.breed, equals(petBreed));
+      expect(pet.age, equals(petAge));
+      expect(pet.imageUrl, equals(petImageUrl));
+      expect(pet.description, equals(petDescription));
+    });
+
+    test('Pet.fromMap creates a Pet object from a map', () {
+      // Arrange
+      final petId = '123';
+      final petMap = {
+        'name': 'Buddy',
+        'breed': 'Golden Retriever',
+        'age': 5,
+        'imageUrl': 'https://example.com/image.jpg',
+        'description': 'Friendly and playful dog',
+      };
+
+      // Act
+      final pet = Pet.fromMap(petMap, id: petId);
+
+      // Assert
+      expect(pet.id, equals(petId));
+      expect(pet.name, equals('Buddy'));
+      expect(pet.breed, equals('Golden Retriever'));
+      expect(pet.age, equals(5));
+      expect(pet.imageUrl, equals('https://example.com/image.jpg'));
+      expect(pet.description, equals('Friendly and playful dog'));
+    });
+
+    test('Pet.fromMap uses default values for missing fields', () {
+      // Arrange
+      final petId = '123';
+      final petMap = {
+        'name': 'Buddy',
+        'breed': 'Golden Retriever',
+        // Missing 'age', 'imageUrl', and 'description'
+      };
+
+      // Act
+      final pet = Pet.fromMap(petMap, id: petId);
+
+      // Assert
+      expect(pet.id, equals(petId));
+      expect(pet.name, equals('Buddy'));
+      expect(pet.breed, equals('Golden Retriever'));
+      expect(pet.age, equals(0));  // Default value for age
+      expect(pet.imageUrl, equals('')); // Default value for imageUrl
+      expect(pet.description, equals('')); // Default value for description
+    });
+
+    test('Pet.toMap converts Pet object to Map correctly', () {
+      // Arrange
+      final petId = '123';
+      final pet = Pet(
+        id: petId,
+        name: 'Buddy',
+        breed: 'Golden Retriever',
+        age: 5,
+        imageUrl: 'https://example.com/image.jpg',
+        description: 'Friendly and playful dog',
+      );
+
+      // Act
+      final petMap = pet.toMap();
+
+      // Assrt
+      expect(petMap['name'], equals('Buddy'));
+      expect(petMap['breed'], equals('Golden Retriever'));
+      expect(petMap['age'], equals(5));
+      expect(petMap['imageUrl'], equals('https://example.com/image.jpg'));
+      expect(petMap['description'], equals('Friendly and playful dog'));
+    });
+  });
+  group('HomeScreen Tests', () {
+    testWidgets('renders empty state when no pets are added', (WidgetTester tester) async {
+      // Build the widget with no pets
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HomeScreen(
+            userId: 'userId',
+            petPhotos: [],
+            onAddPhoto: (photoUrl) {},
+          ),
+        ),
+      );
+      // Check if 'No pets added yet.' is displayed
+      expect(find.text('No pets added yet.'), findsOneWidget);
+    });
+    testWidgets('renders pet card when pets are added', (WidgetTester tester) async {
+      // Create a pet model
+      final Pet pet = Pet(
+        id: 'petId',
+        name: 'Fluffy',
+        breed: 'Golden Retriever',
+        age: 3,
+        description: 'Friendly dog',
+        imageUrl: 'https://example.com/image.jpg',
+      );
+      // Build the widget with the pet
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HomeScreen(
+            userId: 'userId',
+            petPhotos: [],
+            onAddPhoto: (imageUrl) {},
+          ),
+        ),
+      );
+      // Simulate adding the pet to the widget
+      await tester.pump(); // Rebuild the widget
+      // Check if pet's name is displayed
+      expect(find.text('Fluffy'), findsOneWidget);
+      // Check if the pet's breed is displayed
+      expect(find.text('Breed: Golden Retriever'), findsOneWidget);
+    });
+
+    testWidgets('tap on delete icon removes pet', (WidgetTester tester) async {
+      // Create a pet model
+      final Pet pet = Pet(
+        id: 'petId',
+        name: 'Fluffy',
+        breed: 'Golden Retriever',
+        age: 3,
+        description: 'Friendly dog',
+        imageUrl: 'https://storage.googleapis.com/cms-storage-bucket/a9d6ce81aee44ae017ee.png',
+      );
+      // Build the widget with the pet
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HomeScreen(
+            userId: 'userId',
+            petPhotos: [],
+            onAddPhoto: (photoUrl) {},
+          ),
+        ),
+      );
+      // Simulate adding the pet to the widget
+      await tester.pump(); // Rebuild the widget
+      // Tap on the delete icon
+      await tester.tap(find.byIcon(Icons.delete));
+      await tester.pump();
+      // Ensure the pet card is removed (empty list should be shown)
+      expect(find.text('No pets added yet.'), findsOneWidget);
+    });
+
   });
 }
