@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart'; // Replace image_picker with file_picker
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/pet.dart';
 import 'home_screen.dart';

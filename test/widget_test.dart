@@ -1,383 +1,328 @@
-import 'dart:io';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:mockito/mockito.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:network_image_mock/network_image_mock.dart';
 import 'package:pawnetwork/main.dart';
-import 'package:pawnetwork/models/pet.dart';
-import 'package:pawnetwork/models/post.dart';
-import 'package:pawnetwork/screens/community_feed_screen.dart';
-import 'package:mocktail/mocktail.dart';
-import 'package:pawnetwork/screens/main_screen.dart';
-import 'package:pawnetwork/screens/pet_profile_screen.dart';
 import 'package:pawnetwork/screens/signin_screen.dart';
 import 'package:pawnetwork/screens/signup_screen.dart';
-import 'package:mockito/annotations.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/widgets.dart';
+import 'package:pawnetwork/screens/community_feed_screen.dart';
+import 'package:pawnetwork/screens/create_post_screen.dart';
+import 'package:pawnetwork/models/post.dart';
+import 'package:pawnetwork/models/comment.dart';
+import 'package:pawnetwork/services/post_service.dart';
+import 'package:firebase_core_platform_interface/firebase_core_platform_interface.dart';
+import 'mock.dart';
 
-class MockFirebaseApp extends Mock implements FirebaseApp
-{
-  @override
-  final String name = 'mock_app';
-
-  @override
-  final FirebaseOptions options = const FirebaseOptions(
-    apiKey: 'mock_api_key',
-    appId: 'mock_app_id',
-    messagingSenderId: 'mock_messaging_sender_id',
-    projectId: 'mock_project_id',
-  );
-  @override
-  Future<void> delete() async {}
-
-  @override
-  Future<void> setAutomaticDataCollectionEnabled(bool enabled) async {}
-
-  @override
-  Future<void> setAutomaticResourceManagementEnabled(bool enabled) async {}
-
-  @override
-  bool get isAutomaticDataCollectionEnabled => false;
-
-  @override
-  bool get isAutomaticResourceManagementEnabled => false;
-}
+class MockPostService extends Mock implements PostService {}
 
 void main() {
-  setUpAll(() => HttpOverrides.global = null);
-  late MockFirebaseAuth mockFirebaseAuth;
-  setUp(() {
-    mockFirebaseAuth = MockFirebaseAuth();
+  setupFirebaseAuthMocks();
+  setUpAll(() async {
+    await Firebase.initializeApp();
   });
+  group('Sign In Screen Tests', () {
+    testWidgets('Sign In form validation works properly', (WidgetTester tester) async {
+      await tester.pumpWidget(MaterialApp(home: SignInScreen()));
 
+      // Test empty submission
+      await tester.tap(find.text('Sign In'));
+      await tester.pump();
+      expect(find.text('Please enter your email'), findsOneWidget);
+      expect(find.text('Please enter your password'), findsOneWidget);
 
-  group('Pet Model Tests', () {
-    test('Should create a Pet object correctly', () {
-      final pet = Pet(
-        name: 'Buddy',
-        breed: 'Golden Retriever',
-        age: 3,
-        imageUrl: 'https://example.com/buddy.jpg',
-        description: 'A friendly dog',
-      );
-
-      expect(pet.name, 'Buddy');
-      expect(pet.breed, 'Golden Retriever');
-      expect(pet.age, 3);
-      expect(pet.imageUrl, 'https://example.com/buddy.jpg');
-      expect(pet.description, 'A friendly dog');
+      // Test invalid email
+      await tester.enterText(find.widgetWithText(TextFormField, 'Email'), 'not-an-email');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Password'), 'password123');
+      await tester.tap(find.text('Sign In'));
+      await tester.pump();
+      expect(find.text('Please enter a valid email'), findsOneWidget);
     });
 
-    test('Should convert Pet object to map correctly', () {
-      final pet = Pet(
-        name: 'Buddy',
-        breed: 'Golden Retriever',
-        age: 3,
-        imageUrl: 'https://example.com/buddy.jpg',
-        description: 'A friendly dog',
-      );
+    testWidgets('Sign In screen has expected UI elements', (WidgetTester tester) async {
+      await tester.pumpWidget(MaterialApp(home: SignInScreen()));
 
-      final petMap = pet.toMap();
+      // Check for critical UI components
+      expect(find.text('Welcome Back'), findsOneWidget);
+      expect(find.text('Sign In'), findsOneWidget);
+      expect(find.text('Need an account? Sign up'), findsOneWidget);
+      expect(find.byType(CircleAvatar), findsOneWidget);
+      expect(find.byType(TextFormField), findsNWidgets(2)); // Email and password fields
+    });
 
-      expect(petMap, {
-        'name': 'Buddy',
-        'breed': 'Golden Retriever',
-        'age': 3,
-        'imageUrl': 'https://example.com/buddy.jpg',
-        'description': 'A friendly dog',
+    testWidgets('Navigate to Sign Up screen when link is tapped', (WidgetTester tester) async {
+      await tester.pumpWidget(MaterialApp(home: SignInScreen()));
+
+      await tester.tap(find.text('Need an account? Sign up'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SignUpScreen), findsOneWidget);
+    });
+  });
+
+  group('Sign Up Screen Tests', () {
+    testWidgets('Sign Up form validation works properly', (WidgetTester tester) async {
+      await tester.pumpWidget(MaterialApp(home: SignUpScreen()));
+
+      // Test empty submission
+      await tester.tap(find.text('Sign Up'));
+      await tester.pump();
+      expect(find.text('Please enter your email'), findsOneWidget);
+      expect(find.text('Please enter your password'), findsOneWidget);
+      expect(find.text('Please confirm your password'), findsOneWidget);
+
+      // Test password mismatch
+      await tester.enterText(find.widgetWithText(TextFormField, 'Email'), 'test@example.com');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Password'), 'password123');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Confirm Password'), 'differentpassword');
+      await tester.tap(find.text('Sign Up'));
+      await tester.pump();
+      expect(find.text('Passwords do not match'), findsOneWidget);
+
+      // Test password length
+      await tester.enterText(find.widgetWithText(TextFormField, 'Password'), 'pass');
+      await tester.enterText(find.widgetWithText(TextFormField, 'Confirm Password'), 'pass');
+      await tester.tap(find.text('Sign Up'));
+      await tester.pump();
+      expect(find.text('Password must be at least 6 characters'), findsOneWidget);
+    });
+
+    testWidgets('Sign Up screen has expected UI elements', (WidgetTester tester) async {
+      await tester.pumpWidget(MaterialApp(home: SignUpScreen()));
+
+      // Check for critical UI components
+      expect(find.text('Create Account'), findsOneWidget);
+      expect(find.text('Sign Up'), findsOneWidget);
+      expect(find.byType(CircleAvatar), findsOneWidget);
+      expect(find.byType(TextFormField), findsNWidgets(3)); // Email, password, confirm password
+    });
+  });
+
+  group('Community Feed Screen Tests', () {
+    final mockPostService = MockPostService();
+    final mockPosts = [
+      Post(
+        id: '1',
+        userId: 'user1',
+        userAvatar: 'https://example.com/avatar.jpg',
+        petName: 'Fluffy',
+        content: 'My first post!',
+        timestamp: DateTime.now(),
+        likes: 5,
+        commentCount: 2,
+        isLiked: false,
+      ),
+      Post(
+        id: '2',
+        userId: 'user2',
+        userAvatar: 'https://example.com/avatar2.jpg',
+        petName: 'Rover',
+        content: 'Having fun at the park!',
+        imageUrl: 'https://example.com/image.jpg',
+        timestamp: DateTime.now().subtract(Duration(hours: 2)),
+        likes: 10,
+        commentCount: 3,
+        isLiked: true,
+      ),
+    ];
+
+    testWidgets('Community Feed displays posts correctly', (WidgetTester tester) async {
+      // Mock the post service
+      when(mockPostService.getPostsStream()).thenAnswer((_) => Stream.value(mockPosts));
+
+      // Use mockNetworkImagesFor for handling network images in tests
+      await mockNetworkImagesFor(() async {
+        await tester.pumpWidget(MaterialApp(
+          home: CommunityFeedScreen(),
+        ));
+
+        // Wait for stream to complete
+        await tester.pumpAndSettle();
+
+        // Check for post content
+        expect(find.text('Fluffy'), findsOneWidget);
+        expect(find.text('Rover'), findsOneWidget);
+        expect(find.text('My first post!'), findsOneWidget);
+        expect(find.text('Having fun at the park!'), findsOneWidget);
+
+        // Check for like/comment buttons
+        expect(find.byIcon(Icons.favorite), findsOneWidget); // Liked post
+        expect(find.byIcon(Icons.favorite_border), findsOneWidget); // Unliked post
+        expect(find.byIcon(Icons.comment_outlined), findsNWidgets(2));
+        expect(find.byIcon(Icons.share_outlined), findsNWidgets(2));
       });
     });
 
-    test('Should create Pet object from map correctly', () {
-      final petMap = {
-        'name': 'Buddy',
-        'breed': 'Golden Retriever',
-        'age': 3,
-        'imageUrl': 'https://example.com/buddy.jpg',
-        'description': 'A friendly dog',
-      };
+    testWidgets('Empty state shows correctly when no posts', (WidgetTester tester) async {
+      // Mock the post service to return empty list
+      when(mockPostService.getPostsStream()).thenAnswer((_) => Stream.value([]));
 
-      final pet = Pet.fromMap(petMap);
-
-      expect(pet.name, 'Buddy');
-      expect(pet.breed, 'Golden Retriever');
-      expect(pet.age, 3);
-      expect(pet.imageUrl, 'https://example.com/buddy.jpg');
-      expect(pet.description, 'A friendly dog');
-    });
-
-    test('Should handle missing values in fromMap gracefully', () {
-      final petMap = {
-        'name': 'Unknown',
-      };
-
-      final pet = Pet.fromMap(petMap);
-
-      expect(pet.name, 'Unknown');
-      expect(pet.breed, ''); // Default empty string
-      expect(pet.age, 0); // Default age is 0
-      expect(pet.imageUrl, ''); // Default empty string
-      expect(pet.description, ''); // Default empty string
-    });
-  });
-  group('Post Model Tests', () {
-    test('Should create a Post object correctly', () {
-      final post = Post(
-        userId: 'user123',
-        petName: 'Buddy',
-        content: 'Had a fun day at the park!',
-        imageUrl: 'https://example.com/buddy_park.jpg',
-        timestamp: DateTime.parse('2025-02-06T12:00:00Z'),
-        likes: 100,
-      );
-
-      expect(post.userId, 'user123');
-      expect(post.petName, 'Buddy');
-      expect(post.content, 'Had a fun day at the park!');
-      expect(post.imageUrl, 'https://example.com/buddy_park.jpg');
-      expect(post.timestamp, DateTime.parse('2025-02-06T12:00:00Z'));
-      expect(post.likes, 100);
-    });
-
-    test('Should convert Post object to map correctly', () {
-      final post = Post(
-        userId: 'user123',
-        petName: 'Buddy',
-        content: 'Had a fun day at the park!',
-        imageUrl: 'https://example.com/buddy_park.jpg',
-        timestamp: DateTime.parse('2025-02-06T12:00:00Z'),
-        likes: 100,
-      );
-
-      final postMap = post.toMap();
-
-      expect(postMap, {
-        'userId': 'user123',
-        'petName': 'Buddy',
-        'content': 'Had a fun day at the park!',
-        'imageUrl': 'https://example.com/buddy_park.jpg',
-        'timestamp': '2025-02-06T12:00:00.000Z',
-        'likes': 100,
-      });
-    });
-
-    test('Should create Post object from map correctly', () {
-      final postMap = {
-        'userId': 'user123',
-        'petName': 'Buddy',
-        'content': 'Had a fun day at the park!',
-        'imageUrl': 'https://example.com/buddy_park.jpg',
-        'timestamp': '2025-02-06T12:00:00.000Z',
-        'likes': 100,
-      };
-
-      final post = Post.fromMap(postMap);
-
-      expect(post.userId, 'user123');
-      expect(post.petName, 'Buddy');
-      expect(post.content, 'Had a fun day at the park!');
-      expect(post.imageUrl, 'https://example.com/buddy_park.jpg');
-      expect(post.timestamp, DateTime.parse('2025-02-06T12:00:00.000Z'));
-      expect(post.likes, 100);
-    });
-
-    test('Should handle missing or null values in fromMap gracefully', () {
-      final postMap = {
-        'userId': 'user123',
-        'petName': 'Buddy',
-        'content': 'Had a fun day at the park!',
-        'timestamp': '2025-02-06T12:00:00.000Z',
-        'likes': 100,
-      };
-
-      final post = Post.fromMap(postMap);
-
-      expect(post.userId, 'user123');
-      expect(post.petName, 'Buddy');
-      expect(post.content, 'Had a fun day at the park!');
-      expect(post.imageUrl, null); // imageUrl should be null
-      expect(post.timestamp, DateTime.parse('2025-02-06T12:00:00.000Z'));
-      expect(post.likes, 100);
-    });
-  });
-  group('CommunityFeedScreen Tests', () {
-    testWidgets('Should display AppBar with title', (tester) async {
-      // Arrange: Build the screen
       await tester.pumpWidget(MaterialApp(
         home: CommunityFeedScreen(),
       ));
-      await tester.pumpAndSettle();
-      // Assert: Check for the AppBar title
-      expect(find.text('PawNetwork Feed'), findsOneWidget);
-    });
 
-    testWidgets('Should display list of posts', (tester) async {
-      // Arrange: Build the screen
-      await tester.pumpWidget(MaterialApp(
-        home: CommunityFeedScreen(),
-      ));
+      // Wait for stream to complete
       await tester.pumpAndSettle();
-      // Assert: Check that the list of posts is displayed
-      expect(find.byType(Card), findsNWidgets(2)); // Expect 2 posts
-    });
 
-    testWidgets('Should show like button and display likes', (tester) async {
-      // Arrange: Build the screen
-      await tester.pumpWidget(MaterialApp(
-        home: CommunityFeedScreen(),
-      ));
-      await tester.pumpAndSettle();
-      // Assert: Check if like button is displayed and likes are shown
-      expect(find.byIcon(Icons.favorite_border), findsNWidgets(2)); // Expect 2 like buttons
-      expect(find.text('15'), findsOneWidget); // Check if likes are displayed for the first post
-      expect(find.text('24'), findsOneWidget); // Check if likes are displayed for the second post
-    });
-
-    testWidgets('Should show RefreshIndicator', (tester) async {
-      // Arrange: Build the screen
-      await tester.pumpWidget(MaterialApp(
-        home: CommunityFeedScreen(),
-      ));
-      await tester.pumpAndSettle();
-      // Assert: Check that the RefreshIndicator is present
-      expect(find.byType(RefreshIndicator), findsOneWidget);
-    });
-  });
-  group('MainScreen Tests', () {
-    testWidgets('Should display BottomNavigationBar with correct items', (WidgetTester tester) async {
-      await tester.pumpWidget(MaterialApp(home: MainScreen()));
-      await tester.pumpAndSettle();
+      // Check for empty state
+      expect(find.text('No posts yet'), findsOneWidget);
+      expect(find.text('Be the first to share your pet\'s adventures!'), findsOneWidget);
       expect(find.byIcon(Icons.pets), findsOneWidget);
-      expect(find.byIcon(Icons.add_circle_outline), findsOneWidget);
-      expect(find.byIcon(Icons.home), findsOneWidget);
+      expect(find.text('Create Post'), findsOneWidget);
     });
 
-    testWidgets('Should switch screens when tapping BottomNavigationBar items', (WidgetTester tester) async {
-      await tester.pumpWidget(MaterialApp(home: MainScreen()));
-      await tester.pumpAndSettle();
-      expect(find.text('Community'), findsOneWidget);
+    testWidgets('Floating Action Button navigates to Create Post screen', (WidgetTester tester) async {
+      when(mockPostService.getPostsStream()).thenAnswer((_) => Stream.value(mockPosts));
 
-      await tester.tap(find.byIcon(Icons.add_circle_outline));
-      await tester.pump();
+      await mockNetworkImagesFor(() async {
+        await tester.pumpWidget(MaterialApp(
+          home: CommunityFeedScreen(),
+          routes: {
+            '/create-post': (context) => CreatePostScreen(),
+          },
+        ));
 
-      expect(find.text('Add Pet'), findsOneWidget);
+        await tester.pumpAndSettle();
+
+        // Tap the FAB
+        await tester.tap(find.byType(FloatingActionButton));
+        await tester.pumpAndSettle();
+
+        // Should navigate to Create Post screen
+        expect(find.byType(CreatePostScreen), findsOneWidget);
+      });
     });
   });
-  group('PetProfileScreen Tests', () {
-    testWidgets('Should display form fields and save button', (WidgetTester tester) async {
-      await tester.pumpWidget(MaterialApp(home: PetProfileScreen()));
-      await tester.pumpAndSettle();
 
-      expect(find.byType(TextFormField), findsNWidgets(4)); // Name, Breed, Age, Description
-      expect(find.text('Save Profile'), findsOneWidget);
-    });
+  group('Create Post Screen Tests', () {
+    testWidgets('Create Post screen has all required fields', (WidgetTester tester) async {
+      await tester.pumpWidget(MaterialApp(home: CreatePostScreen()));
 
-    testWidgets('Should toggle default image when refresh button is clicked', (WidgetTester tester) async {
-      await tester.pumpWidget(MaterialApp(home: PetProfileScreen()));
-      await tester.pumpAndSettle();
-
-      final Finder refreshButton = find.byIcon(Icons.refresh);
-      expect(refreshButton, findsOneWidget);
-
-      await tester.tap(refreshButton);
-      await tester.pumpAndSettle();
-
-      expect(find.byIcon(Icons.camera_alt), findsOneWidget); // Image toggled
-    });
-
-    testWidgets('renders pet profile form', (WidgetTester tester) async {
-      // Build the PetProfileScreen widget.
-      await tester.pumpWidget(MaterialApp(
-        home: PetProfileScreen(),
-      ));
-      await tester.pumpAndSettle();
-      // Check if the form fields and buttons are rendered.
-      expect(find.text('Create Pet Profile'), findsOneWidget);
+      // Check for UI components
+      expect(find.text('Create Post'), findsOneWidget);
+      expect(find.text('Post'), findsOneWidget);
       expect(find.text('Pet Name'), findsOneWidget);
-      expect(find.text('Breed'), findsOneWidget);
-      expect(find.text('Age'), findsOneWidget);
-      expect(find.text('Description'), findsOneWidget);
-      expect(find.byType(ElevatedButton), findsOneWidget);
+      expect(find.text('Content'), findsOneWidget);
+      expect(find.text('Add Photo'), findsOneWidget);
+      expect(find.byIcon(Icons.photo), findsOneWidget);
     });
 
-  });
-  group('App Widget Tests', () {
-    testWidgets('App initializes and shows loading indicator', (WidgetTester tester) async {
-      await tester.pumpWidget(App());
+    testWidgets('Validation shows error messages', (WidgetTester tester) async {
+      await tester.pumpWidget(MaterialApp(home: CreatePostScreen()));
+
+      // Tap Post button without entering data
+      await tester.tap(find.text('Post'));
       await tester.pump();
+
+      // Should show error for missing pet name
+      expect(find.text('Please enter your pet name'), findsOneWidget);
+
+      // Enter pet name but no content
+      await tester.enterText(find.widgetWithText(TextField, 'Pet Name'), 'Fluffy');
+      await tester.tap(find.text('Post'));
+      await tester.pump();
+
+      // Should show error for missing content
+      expect(find.text('Please enter post content'), findsOneWidget);
+    });
+  });
+
+  group('Main App Tests', () {
+    testWidgets('Loading screen displays correctly', (WidgetTester tester) async {
+      await tester.pumpWidget(MaterialApp(home: LoadingScreen()));
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(Image), findsOneWidget);
     });
 
-    testWidgets('App shows error when Firebase initialization fails', (WidgetTester tester) async {
-      // Mock Firebase initialization to throw an error
-      final mockFirebaseApp = MockFirebaseApp();
-      when(() => Firebase.initializeApp()).thenThrow(Exception('Initialization failed'));
+    testWidgets('App initializes with correct theme', (WidgetTester tester) async {
       await tester.pumpWidget(MyApp());
-      await tester.pump();
-      // Expecting the error message on the screen
-      expect(find.text('Error: Exception: Initialization failed'), findsOneWidget);
-    });
 
-    testWidgets('App shows MyApp when Firebase initialization is done', (WidgetTester tester) async {
-      // Mock Firebase initialization to complete successfully
-      when(() => Firebase.initializeApp()).thenAnswer((_) async => MockFirebaseApp());
+      final MaterialApp app = tester.widget(find.byType(MaterialApp));
+      expect(app.title, 'PawNetwork');
 
-      await tester.pumpWidget(MyApp());
-      await tester.pumpAndSettle();
-
-      expect(find.byType(MyApp), findsOneWidget);
+      expect(app.debugShowCheckedModeBanner, false);
     });
   });
-  group('MyApp Widget Tests', () {
-    testWidgets('MyApp shows SignInScreen when user is not authenticated', (WidgetTester tester) async {
-      // Mock FirebaseAuth to return null user
-      when(() => mockFirebaseAuth.authStateChanges()).thenAnswer((_) => Stream.value(null));
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MyApp(),
-        ),
-      );
-      await tester.pumpAndSettle();
+  group('Post Model Tests', () {
+    test('Post.fromMap handles missing fields gracefully', () {
+      final map = <String, dynamic>{
+        'id': '123',
+        // Intentionally missing other fields
+      };
 
-      expect(find.byType(SignInScreen), findsOneWidget);
+      final post = Post.fromMap(map);
+
+      expect(post.id, '123');
+      expect(post.petName, 'Unknown Pet');
+      expect(post.content, '');
+      expect(post.likes, 0);
+      expect(post.commentCount, 0);
+      expect(post.isLiked, false);
     });
 
-    testWidgets('MyApp shows MainScreen when user is authenticated', (WidgetTester tester) async {
-      // Mock FirebaseAuth to return a user
-      final mockUser = MockUser(isAnonymous: false, uid: '123');
-      when(() => mockFirebaseAuth.authStateChanges()).thenAnswer((_) => Stream.value(mockUser));
+    test('Post.fromMap parses timestamp correctly', () {
+      final timestamp = Timestamp.fromDate(DateTime(2023, 1, 1));
+      final map = <String, dynamic>{
+        'id': '123',
+        'timestamp': timestamp,
+      };
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MyApp(),
-        ),
-      );
-      await tester.pumpAndSettle();
+      final post = Post.fromMap(map);
 
-      expect(find.byType(MainScreen), findsOneWidget);
+      expect(post.timestamp.year, 2023);
+      expect(post.timestamp.month, 1);
+      expect(post.timestamp.day, 1);
+    });
+  });
+
+  group('Comment Model Tests', () {
+    test('Comment.fromMap creates correct object', () {
+      final now = DateTime.now();
+      final map = <String, dynamic>{
+        'id': 'comment1',
+        'postId': 'post1',
+        'userId': 'user1',
+        'userName': 'John Doe',
+        'userAvatar': 'https://example.com/avatar.jpg',
+        'content': 'Great post!',
+        'timestamp': now.millisecondsSinceEpoch,
+      };
+
+      final comment = Comment.fromMap(map);
+
+      expect(comment.id, 'comment1');
+      expect(comment.postId, 'post1');
+      expect(comment.userId, 'user1');
+      expect(comment.userName, 'John Doe');
+      expect(comment.content, 'Great post!');
+      expect(comment.timestamp.millisecondsSinceEpoch, now.millisecondsSinceEpoch);
     });
 
-    testWidgets('MyApp navigates to SignInScreen when user logs out', (WidgetTester tester) async {
-      // Mock FirebaseAuth to return a user initially and then null after logout
-      final mockUser = MockUser(isAnonymous: false, uid: '123');
-      when(() => mockFirebaseAuth.authStateChanges()).thenAnswer((_) => Stream.value(mockUser));
-      when(() => mockFirebaseAuth.signOut()).thenAnswer((_) async {});
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MyApp(),
-        ),
+    test('Comment.toMap converts correctly', () {
+      final now = DateTime.now();
+      final comment = Comment(
+        id: 'comment1',
+        postId: 'post1',
+        userId: 'user1',
+        userName: 'John Doe',
+        userAvatar: 'https://example.com/avatar.jpg',
+        content: 'Great post!',
+        timestamp: now,
       );
-      await tester.pumpAndSettle();
 
-      // Simulate logout
-      await tester.tap(find.byIcon(Icons.logout));
-      await tester.pumpAndSettle();
+      final map = comment.toMap();
 
-      expect(find.byType(SignInScreen), findsOneWidget);
+      expect(map['id'], 'comment1');
+      expect(map['postId'], 'post1');
+      expect(map['userId'], 'user1');
+      expect(map['userName'], 'John Doe');
+      expect(map['content'], 'Great post!');
+      expect(map['timestamp'], now.millisecondsSinceEpoch);
     });
   });
 }

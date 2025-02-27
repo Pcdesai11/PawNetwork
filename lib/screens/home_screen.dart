@@ -9,7 +9,6 @@ import '../../models/pet.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutter/foundation.dart';
 import 'dart:typed_data';
-import 'package:image_picker_for_web/image_picker_for_web.dart';
 
 class HomeScreen extends StatefulWidget {
   final String? userId;
