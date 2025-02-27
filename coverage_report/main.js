@@ -221,16 +221,19 @@ var assemblies = [
   {
     "name": "Default",
     "classes": [
-      { "name": "lib\\auth.dart", "rp": "lib_auth.dart.html", "cl": 0, "ucl": 18, "cal": 18, "tl": 49, "cb": 0, "tb": 6, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "lib\\main.dart", "rp": "lib_main.dart.html", "cl": 0, "ucl": 65, "cal": 65, "tl": 148, "cb": 0, "tb": 8, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "lib\\auth.dart", "rp": "lib_auth.dart.html", "cl": 0, "ucl": 19, "cal": 19, "tl": 51, "cb": 0, "tb": 7, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "lib\\main.dart", "rp": "lib_main.dart.html", "cl": 50, "ucl": 19, "cal": 69, "tl": 151, "cb": 3, "tb": 8, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "lib\\models\\comment.dart", "rp": "lib_models_comment.dart.html", "cl": 19, "ucl": 0, "cal": 19, "tl": 43, "cb": 3, "tb": 3, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
       { "name": "lib\\models\\pet.dart", "rp": "lib_models_pet.dart.html", "cl": 15, "ucl": 0, "cal": 15, "tl": 38, "cb": 3, "tb": 3, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "lib\\models\\post.dart", "rp": "lib_models_post.dart.html", "cl": 17, "ucl": 0, "cal": 17, "tl": 39, "cb": 3, "tb": 3, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "lib\\screens\\community_feed_screen.dart", "rp": "lib_screens_community_feed_screen.dart.html", "cl": 45, "ucl": 5, "cal": 50, "tl": 115, "cb": 2, "tb": 7, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "lib\\screens\\home_screen.dart", "rp": "lib_screens_home_screen.dart.html", "cl": 0, "ucl": 73, "cal": 73, "tl": 173, "cb": 0, "tb": 12, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "lib\\screens\\main_screen.dart", "rp": "lib_screens_main_screen.dart.html", "cl": 0, "ucl": 31, "cal": 31, "tl": 91, "cb": 0, "tb": 7, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "lib\\screens\\pet_profile_screen.dart", "rp": "lib_screens_pet_profile_screen.dart.html", "cl": 73, "ucl": 14, "cal": 87, "tl": 179, "cb": 6, "tb": 8, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "lib\\screens\\signin_screen.dart", "rp": "lib_screens_signin_screen.dart.html", "cl": 0, "ucl": 70, "cal": 70, "tl": 143, "cb": 0, "tb": 11, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
-      { "name": "lib\\screens\\signup_screen.dart", "rp": "lib_screens_signup_screen.dart.html", "cl": 0, "ucl": 101, "cal": 101, "tl": 200, "cb": 0, "tb": 10, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "lib\\models\\post.dart", "rp": "lib_models_post.dart.html", "cl": 28, "ucl": 10, "cal": 38, "tl": 95, "cb": 4, "tb": 4, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "lib\\screens\\community_feed_screen.dart", "rp": "lib_screens_community_feed_screen.dart.html", "cl": 0, "ucl": 170, "cal": 170, "tl": 316, "cb": 0, "tb": 23, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "lib\\screens\\create_post_screen.dart", "rp": "lib_screens_create_post_screen.dart.html", "cl": 53, "ucl": 47, "cal": 100, "tl": 221, "cb": 6, "tb": 16, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "lib\\screens\\home_screen.dart", "rp": "lib_screens_home_screen.dart.html", "cl": 28, "ucl": 95, "cal": 123, "tl": 246, "cb": 6, "tb": 19, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "lib\\screens\\main_screen.dart", "rp": "lib_screens_main_screen.dart.html", "cl": 0, "ucl": 62, "cal": 62, "tl": 129, "cb": 0, "tb": 12, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "lib\\screens\\pet_profile_screen.dart", "rp": "lib_screens_pet_profile_screen.dart.html", "cl": 76, "ucl": 53, "cal": 129, "tl": 269, "cb": 6, "tb": 12, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "lib\\screens\\signin_screen.dart", "rp": "lib_screens_signin_screen.dart.html", "cl": 55, "ucl": 18, "cal": 73, "tl": 148, "cb": 8, "tb": 11, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "lib\\screens\\signup_screen.dart", "rp": "lib_screens_signup_screen.dart.html", "cl": 84, "ucl": 18, "cal": 102, "tl": 201, "cb": 7, "tb": 10, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
+      { "name": "lib\\services\\post_service.dart", "rp": "lib_services_post_service.dart.html", "cl": 0, "ucl": 85, "cal": 85, "tl": 192, "cb": 0, "tb": 11, "cm": 0, "fcm": 0, "tm": 0, "lch": [], "bch": [], "mch": [], "mfch": [], "hc": [], "metrics": { } },
     ]},
 ];
 
