@@ -46,7 +46,7 @@ dependencies:
   js: any
   network_image_mock: ^2.1.1
   fake_cloud_firestore: ^3.1.0
-
+  image_network: ^2.6.0
 
 
 dev_dependencies:

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-class SignUpScreen extends StatefulWidget {
+
+import 'package:image_network/image_network.dart';class SignUpScreen extends StatefulWidget {
   @override
   _SignUpScreenState createState() => _SignUpScreenState();
 }
@@ -50,11 +51,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [Color(0xFFFFC3A0), Color(0xFFFF7B8C)],
-            ),
-            image: DecorationImage(
-              image: AssetImage('assets/pet_background.png'),
-              fit: BoxFit.cover,
-              opacity: 0.2,
             ),
           ),
           child: Center(
