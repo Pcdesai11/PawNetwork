@@ -94,49 +94,10 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Get available screen width for responsive sizing
-    final screenWidth = MediaQuery.of(context).size.width;
-
     return Scaffold(
-      body: Column(
-        children: [
-          // Only show photo carousel on the Home screen (index 0)
-          if (_selectedIndex == 0 && petPhotos.isNotEmpty)
-            Container(
-              height: screenWidth * 0.4, // Responsive height based on screen width
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: petPhotos.length,
-                itemBuilder: (context, index) {
-                  return Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: CachedNetworkImage(
-                        imageUrl: petPhotos[index],
-                        height: screenWidth * 0.4,
-                        width: screenWidth * 0.3,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => Center(
-                          child: CircularProgressIndicator(),
-                        ),
-                        errorWidget: (context, url, error) => Container(
-                          color: Colors.grey[300],
-                          child: Icon(Icons.error),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          Expanded(
-            child: _screens != null && _selectedIndex < _screens.length
-                ? _screens[_selectedIndex]
-                : Center(child: CircularProgressIndicator()),
-          ),
-        ],
-      ),
+      body: _screens != null && _selectedIndex < _screens.length
+          ? _screens[_selectedIndex]
+          : Center(child: CircularProgressIndicator()),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) {
