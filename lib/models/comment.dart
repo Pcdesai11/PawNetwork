@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Comment {
   final String id;
   final String postId;
@@ -18,6 +20,23 @@ class Comment {
   });
 
   factory Comment.fromMap(Map<String, dynamic> map) {
+    // Handle different timestamp formats from Firestore
+    DateTime timestamp;
+    final timestampData = map['timestamp'];
+
+    if (timestampData is Timestamp) {
+      timestamp = timestampData.toDate();
+    } else if (timestampData == null) {
+      timestamp = DateTime.now(); // Fallback for missing timestamp
+    } else {
+      try {
+        timestamp = DateTime.fromMillisecondsSinceEpoch(timestampData);
+      } catch (e) {
+        print('Error parsing timestamp: $e');
+        timestamp = DateTime.now(); // Fallback
+      }
+    }
+
     return Comment(
       id: map['id'] as String,
       postId: map['postId'] as String,
@@ -25,19 +44,6 @@ class Comment {
       userName: map['userName'] as String,
       userAvatar: map['userAvatar'] as String,
       content: map['content'] as String,
-      timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp']),
+      timestamp: timestamp,
     );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'postId': postId,
-      'userId': userId,
-      'userName': userName,
-      'userAvatar': userAvatar,
-      'content': content,
-      'timestamp': timestamp.millisecondsSinceEpoch,
-    };
-  }
-}
+  }}

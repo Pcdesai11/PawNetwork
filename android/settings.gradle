@@ -24,3 +24,5 @@ plugins {
 }
 
 include ":app"
+include ':flutter_barcode_scanner'
+project(':flutter_barcode_scanner').projectDir = new File(rootProject.projectDir, '../.pub-cache/hosted/pub.dartlang.org/flutter_barcode_scanner-x.x.x/android')

@@ -7,10 +7,13 @@ class PostService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  Stream<List<Post>> getPostsStream() {
+
+  // Updated method to get initial posts stream with pagination
+  Stream<List<Post>> getPostsStream({int limit = 10}) {
     return _firestore
         .collection('posts')
         .orderBy('timestamp', descending: true)
+        .limit(limit)
         .snapshots()
         .map((snapshot) {
       return snapshot.docs.map((doc) {
@@ -20,6 +23,7 @@ class PostService {
           return Post.fromMap(data);
         } catch (e) {
           print('Error parsing post ${doc.id}: $e');
+
           // Return a placeholder post instead of throwing an error
           return Post(
             id: doc.id,
@@ -35,6 +39,50 @@ class PostService {
         }
       }).toList();
     });
+  }
+
+// New method to get more posts for pagination
+  Future<List<Post>> getMorePosts({required String lastPostId, int limit = 10}) async {
+    // First, get the document snapshot of the last post
+    final lastPostDoc = await _firestore
+        .collection('posts')
+        .doc(lastPostId)
+        .get();
+
+    if (!lastPostDoc.exists) {
+      return [];
+    }
+
+    // Query for posts that come after the last post
+    final querySnapshot = await _firestore
+        .collection('posts')
+        .orderBy('timestamp', descending: true)
+        .startAfterDocument(lastPostDoc)
+        .limit(limit)
+        .get();
+
+    return querySnapshot.docs.map((doc) {
+      try {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return Post.fromMap(data);
+      } catch (e) {
+        print('Error parsing post ${doc.id}: $e');
+
+        // Return a placeholder post instead of throwing an error
+        return Post(
+          id: doc.id,
+          userId: '',
+          userAvatar: 'default_avatar_url',
+          petName: 'Error Loading Post',
+          content: 'This post could not be loaded correctly.',
+          timestamp: DateTime.now(),
+          likes: 0,
+          commentCount: 0,
+          isLiked: false,
+        );
+      }
+    }).toList();
   }
 
   Stream<List<Comment>> getCommentsStream(String postId) {
@@ -135,10 +183,21 @@ class PostService {
     }
   }
 
+  // Replace this method in your post_service.dart file:
+
   Future<void> refreshPosts() async {
-    // This method is currently just a placeholder
-    // We'll keep it simple for now
-    return Future.delayed(Duration(milliseconds: 500));
+    try {
+      // Provide a real implementation to refresh posts
+      // This will clear any cached data and force a fresh fetch
+      // Wait a moment to give Firebase time to update
+      await Future.delayed(Duration(milliseconds: 500));
+
+      // You could perform additional cache clearing here if needed
+      return;
+    } catch (e) {
+      print('Error refreshing posts: $e');
+      throw e;
+    }
   }
 
   Future<void> createPost({

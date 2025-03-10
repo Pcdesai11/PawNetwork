@@ -4,7 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../models/post.dart';
 import '../../models/comment.dart';
 import '../../services/post_service.dart';
-import 'create_post_screen.dart'; // Import the new screen
+import 'create_post_screen.dart';
 
 class CommunityFeedScreen extends StatefulWidget {
   @override
@@ -16,10 +16,65 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
   final PostService _postService = PostService();
   final TextEditingController _commentController = TextEditingController();
 
+  // For pagination
+  final int _postsPerPage = 10;
+  String? _lastPostId;
+  bool _hasMorePosts = true;
+  bool _isLoadingMore = false;
+  List<Post> _allPosts = [];
+  final ScrollController _scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
-    _postsStream = _postService.getPostsStream();
+    _initializePosts();
+    _scrollController.addListener(_scrollListener);
+  }
+
+  void _initializePosts() {
+    _postsStream = _postService.getPostsStream(limit: _postsPerPage);
+  }
+
+  void _scrollListener() {
+    if (_scrollController.position.pixels == _scrollController.position.maxScrollExtent) {
+      if (!_isLoadingMore && _hasMorePosts) {
+        _loadMorePosts();
+      }
+    }
+  }
+
+  Future<void> _loadMorePosts() async {
+    if (_isLoadingMore || !_hasMorePosts || _allPosts.isEmpty) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    try {
+      _lastPostId = _allPosts.last.id;
+      List<Post> morePosts = await _postService.getMorePosts(
+        lastPostId: _lastPostId!,
+        limit: _postsPerPage,
+      );
+
+      if (morePosts.isEmpty) {
+        setState(() {
+          _hasMorePosts = false;
+        });
+      } else {
+        setState(() {
+          _allPosts.addAll(morePosts);
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load more posts: ${e.toString()}')),
+      );
+    } finally {
+      setState(() {
+        _isLoadingMore = false;
+      });
+    }
   }
 
   Future<void> _handleLike(Post post) async {
@@ -52,101 +107,115 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'Comments',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) {
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
             ),
-            StreamBuilder<List<Comment>>(
-              stream: _postService.getCommentsStream(post.id),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  print('Comment error: ${snapshot.error}');
-                  return Center(child: Text('Error loading comments: ${snapshot.error.toString().substring(0, 100)}'));
-                }
-                if (!snapshot.hasData) {
-                  return Center(child: CircularProgressIndicator());
-                }
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    'Comments',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                Expanded(
+                  child: StreamBuilder<List<Comment>>(
+                    stream: _postService.getCommentsStream(post.id),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        print('Comment error: ${snapshot.error}');
+                        return Center(child: Text('Error loading comments: ${snapshot.error.toString().substring(0, 100)}'));
+                      }
+                      if (!snapshot.hasData) {
+                        return Center(child: CircularProgressIndicator());
+                      }
 
-                final comments = snapshot.data!;
-                if (comments.isEmpty) {
-                  return Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Center(
-                      child: Text(
-                        'No comments yet. Be the first to comment!',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    ),
-                  );
-                }
+                      final comments = snapshot.data!;
+                      if (comments.isEmpty) {
+                        return Padding(
+                          padding: EdgeInsets.all(32),
+                          child: Center(
+                            child: Text(
+                              'No comments yet. Be the first to comment!',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                        );
+                      }
 
-                return Expanded(
-                  child: ListView.builder(
-                    itemCount: comments.length,
-                    itemBuilder: (context, index) {
-                      final comment = comments[index];
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundImage: NetworkImage(comment.userAvatar),
-                        ),
-                        title: Text(comment.userName),
-                        subtitle: Text(comment.content),
-                        trailing: Text(
-                          _formatTimestamp(comment.timestamp),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
+                      return ListView.builder(
+                        controller: scrollController,
+                        itemCount: comments.length,
+                        itemBuilder: (context, index) {
+                          final comment = comments[index];
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundImage: NetworkImage(comment.userAvatar),
+                              onBackgroundImageError: (exception, stackTrace) {
+                                print('Failed to load avatar: $exception');
+                              },
+                              child: Icon(Icons.person, color: Colors.white),
+                            ),
+                            title: Text(comment.userName),
+                            subtitle: Text(comment.content),
+                            trailing: Text(
+                              _formatTimestamp(comment.timestamp),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          );
+                        },
                       );
                     },
                   ),
-                );
-              },
-            ),
-            Padding(
-              padding: EdgeInsets.all(8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _commentController,
-                      decoration: InputDecoration(
-                        hintText: 'Add a comment...',
-                        border: OutlineInputBorder(),
+                ),
+                Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _commentController,
+                          decoration: InputDecoration(
+                            hintText: 'Add a comment...',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.send),
-                    onPressed: () async {
-                      if (_commentController.text.trim().isEmpty) return;
+                      IconButton(
+                        icon: Icon(Icons.send),
+                        onPressed: () async {
+                          if (_commentController.text.trim().isEmpty) return;
 
-                      try {
-                        await _postService.addComment(
-                          post.id,
-                          _commentController.text.trim(),
-                        );
-                        _commentController.clear();
-                      } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Failed to post comment: ${e.toString()}')),
-                        );
-                      }
-                    },
+                          try {
+                            await _postService.addComment(
+                              post.id,
+                              _commentController.text.trim(),
+                            );
+                            _commentController.clear();
+                            Navigator.pop(context); // Close dialog after posting comment
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Failed to post comment: ${e.toString()}')),
+                            );
+                          }
+                        },
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -170,12 +239,25 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
       appBar: AppBar(
         title: Text('PawNetwork Feed'),
       ),
+      // Replace the following code in your CommunityFeedScreen.dart file
+// Find the FloatingActionButton section in the build method and replace it with this:
+
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
+        onPressed: () async {
+          final result = await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => CreatePostScreen()),
           );
+
+          // If post was successfully created, refresh the feed
+          if (result == true) {
+            await _postService.refreshPosts();
+            setState(() {
+              _lastPostId = null;
+              _hasMorePosts = true;
+              _initializePosts();
+            });
+          }
         },
         child: Icon(Icons.add),
         backgroundColor: Theme.of(context).colorScheme.primary,
@@ -191,8 +273,9 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
             return Center(child: CircularProgressIndicator());
           }
 
-          final posts = snapshot.data!;
-          if (posts.isEmpty) {
+          _allPosts = snapshot.data!;
+
+          if (_allPosts.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -229,11 +312,26 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
           }
 
           return RefreshIndicator(
-            onRefresh: () => _postService.refreshPosts(),
+            onRefresh: () async {
+              await _postService.refreshPosts();
+              setState(() {
+                _lastPostId = null;
+                _hasMorePosts = true;
+                _initializePosts();
+              });
+            },
             child: ListView.builder(
-              itemCount: posts.length,
+              controller: _scrollController,
+              itemCount: _allPosts.length + (_hasMorePosts ? 1 : 0),
               itemBuilder: (context, index) {
-                final post = posts[index];
+                if (index == _allPosts.length) {
+                  return Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
+                final post = _allPosts[index];
                 return AnimatedOpacity(
                   opacity: 1.0,
                   duration: Duration(milliseconds: 500),
@@ -249,6 +347,10 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                         ListTile(
                           leading: CircleAvatar(
                             backgroundImage: NetworkImage(post.userAvatar),
+                            onBackgroundImageError: (exception, stackTrace) {
+                              print('Failed to load avatar: $exception');
+                            },
+                            child: Icon(Icons.person, color: Colors.white),
                           ),
                           title: Text(post.petName),
                           subtitle: Text(_formatTimestamp(post.timestamp)),
@@ -257,14 +359,60 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                             onPressed: () {},
                           ),
                         ),
+                        // Find this section in the CommunityFeedScreen.dart file
+// Replace the image container with this improved version:
+
                         if (post.imageUrl != null && post.imageUrl!.isNotEmpty)
                           Container(
-                            height: 200,
+                            height: 250,
                             width: double.infinity,
-                            decoration: BoxDecoration(
-                              image: DecorationImage(
-                                image: NetworkImage(post.imageUrl!),
-                                fit: BoxFit.cover,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  // Loading indicator shown until image loads
+                                  Center(child: CircularProgressIndicator()),
+
+                                  // Image with proper error handling
+                                  Image.network(
+                                    post.imageUrl!,
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    loadingBuilder: (context, child, loadingProgress) {
+                                      if (loadingProgress == null) {
+                                        // Image is fully loaded, return the image
+                                        return child;
+                                      }
+                                      // Image is still loading, show progress
+                                      return Center(
+                                        child: CircularProgressIndicator(
+                                          value: loadingProgress.expectedTotalBytes != null
+                                              ? loadingProgress.cumulativeBytesLoaded /
+                                              (loadingProgress.expectedTotalBytes ?? 1)
+                                              : null,
+                                        ),
+                                      );
+                                    },
+                                    errorBuilder: (context, error, stackTrace) {
+                                      print('Error loading image: $error');
+                                      return Center(
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.error_outline, size: 40, color: Colors.red[300]),
+                                            SizedBox(height: 8),
+                                            Text(
+                                              'Failed to load image',
+                                              style: TextStyle(color: Colors.grey[600]),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -311,6 +459,8 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
   @override
   void dispose() {
     _commentController.dispose();
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
     super.dispose();
   }
 }

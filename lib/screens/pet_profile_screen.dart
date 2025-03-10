@@ -5,6 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:path/path.dart' as path;
 import '../../models/pet.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path_provider/path_provider.dart';
 
 class PetProfileScreen extends StatefulWidget {
   final String userId;
@@ -53,6 +55,20 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
     }
   }
 
+  Future<File> _compressImage(File file) async {
+    final fileName = path.basename(file.path);
+    final directory = await getTemporaryDirectory();
+    final targetPath = path.join(directory.path, fileName);
+
+    var result = await FlutterImageCompress.compressAndGetFile(
+      file.path,
+      targetPath,
+      quality: 60,  // Adjust quality as needed (0-100)
+    );
+
+    return result != null ? File(result.path) : file;  // Convert XFile to File
+  }
+
   Future<void> _savePetProfile() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -62,13 +78,32 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
 
     try {
       String imageUrl = _imageUrl;
+      String? oldImageUrl;
+
+      // If editing and a new image is selected, save the old URL for deletion
+      if (_isEditing && _imageFile != null && _imageUrl.isNotEmpty) {
+        oldImageUrl = _imageUrl;
+      }
 
       // Upload image if a new file is selected
       if (_imageFile != null) {
-        final fileName = path.basename(_imageFile!.path);
+        final compressedImage = await _compressImage(_imageFile!);
+        final fileName = '${DateTime.now().millisecondsSinceEpoch}_${path.basename(compressedImage.path)}';
         final storageRef = FirebaseStorage.instance.ref().child('pet_images/$fileName');
-        await storageRef.putFile(_imageFile!);
+        await storageRef.putFile(compressedImage);
         imageUrl = await storageRef.getDownloadURL();
+
+        // Delete old image after successful upload of new one
+        if (oldImageUrl != null) {
+          try {
+            // Extract the path from the URL
+            final ref = FirebaseStorage.instance.refFromURL(oldImageUrl);
+            await ref.delete();
+          } catch (e) {
+            print('Failed to delete old image: $e');
+            // Continue execution even if deletion fails
+          }
+        }
       }
 
       final petRef = FirebaseFirestore.instance
@@ -76,9 +111,11 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
           .doc(widget.userId)
           .collection('pets');
 
+      Pet pet;
+
       if (_isEditing) {
         // Update existing pet profile
-        final pet = Pet(
+        pet = Pet(
           id: widget.pet!.id,
           name: _nameController.text.trim(),
           breed: _breedController.text.trim(),
@@ -89,22 +126,20 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
 
         await petRef.doc(widget.pet!.id).update(pet.toMap());
 
-        // Show success message
+        // Show success message and ensure it's shown before navigating
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Pet profile updated!'),
             backgroundColor: Colors.pinkAccent,
+            duration: Duration(seconds: 1),
           ),
         );
-
-        // Return to the previous screen
-        Navigator.pop(context, pet);
       } else {
         // Create new pet profile with a generated document reference
         final newDocRef = petRef.doc();  // Get a new document reference
 
-        final pet = Pet(
-          id: widget.pet?.id ?? newDocRef.id,  // Use the ID from the reference
+        pet = Pet(
+          id: newDocRef.id,  // Always use the new ID for new pets
           name: _nameController.text.trim(),
           breed: _breedController.text.trim(),
           age: int.parse(_ageController.text.trim()),
@@ -115,116 +150,142 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
         // Use the same reference to set the data
         await newDocRef.set(pet.toMap());
 
-        // Show success message
+        // Show success message and ensure it's shown before navigating
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Pet profile created!'),
             backgroundColor: Colors.pinkAccent,
+            duration: Duration(seconds: 1),
           ),
         );
+      }
 
-        // Return to the previous screen
+      // Delay the navigation slightly to allow the UI to update
+      // and the Snackbar to be visible
+      await Future.delayed(Duration(milliseconds: 500));
+
+      // Make sure we're still mounted before trying to navigate
+      if (mounted) {
         Navigator.pop(context, pet);
       }
     } catch (e) {
       // Show error message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      // Only update state if still mounted
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEditing ? 'Edit Pet Profile' : 'Create Pet Profile'),
-        backgroundColor: Colors.pinkAccent,
-        centerTitle: true,
-      ),
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFFFFE4E1), Color(0xFFFACDCE)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+    return WillPopScope(
+      onWillPop: () async {
+        // Return null when navigating back to indicate no data was changed
+        Navigator.pop(context, null);
+        return false; // Prevents default back behavior
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(_isEditing ? 'Edit Pet Profile' : 'Create Pet Profile'),
+          backgroundColor: Colors.pinkAccent,
+          centerTitle: true,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back),
+            onPressed: () {
+              // Explicitly handle back navigation
+              Navigator.pop(context, null);
+            },
+          ),
+        ),
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFFFFE4E1), Color(0xFFFACDCE)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                 ),
               ),
             ),
-          ),
-          SingleChildScrollView(
-            padding: EdgeInsets.all(16),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Stack(
-                      children: [
-                        CircleAvatar(
-                          radius: 75,
-                          backgroundColor: Colors.grey[200],
-                          backgroundImage: _imageFile != null
-                              ? FileImage(_imageFile!)
-                              : _imageUrl.isNotEmpty
-                              ? NetworkImage(_imageUrl) as ImageProvider
-                              : null,
-                          child: _imageFile == null && _imageUrl.isEmpty
-                              ? Icon(Icons.pets, size: 50, color: Colors.grey[400])
-                              : null,
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: FloatingActionButton(
-                            backgroundColor: Colors.pinkAccent,
-                            onPressed: _pickImage,
-                            child: Icon(Icons.camera_alt),
-                            mini: true,
+            SingleChildScrollView(
+              padding: EdgeInsets.all(16),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 75,
+                            backgroundColor: Colors.grey[200],
+                            backgroundImage: _imageFile != null
+                                ? FileImage(_imageFile!)
+                                : _imageUrl.isNotEmpty
+                                ? NetworkImage(_imageUrl) as ImageProvider
+                                : null,
+                            child: _imageFile == null && _imageUrl.isEmpty
+                                ? Icon(Icons.pets, size: 50, color: Colors.grey[400])
+                                : null,
                           ),
-                        ),
-                      ],
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: FloatingActionButton(
+                              backgroundColor: Colors.pinkAccent,
+                              onPressed: _pickImage,
+                              child: Icon(Icons.camera_alt),
+                              mini: true,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 24),
-                  _buildTextField('Pet Name', _nameController, Icons.pets),
-                  SizedBox(height: 16),
-                  _buildTextField('Breed', _breedController, Icons.category),
-                  SizedBox(height: 16),
-                  _buildTextField('Age', _ageController, Icons.cake, keyboardType: TextInputType.number),
-                  SizedBox(height: 16),
-                  _buildTextField('Description', _descriptionController, Icons.description, maxLines: 3),
-                  SizedBox(height: 24),
-                  _isLoading
-                      ? Center(child: CircularProgressIndicator())
-                      : ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.pinkAccent,
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    SizedBox(height: 24),
+                    _buildTextField('Pet Name', _nameController, Icons.pets),
+                    SizedBox(height: 16),
+                    _buildTextField('Breed', _breedController, Icons.category),
+                    SizedBox(height: 16),
+                    _buildTextField('Age', _ageController, Icons.cake, keyboardType: TextInputType.number),
+                    SizedBox(height: 16),
+                    _buildTextField('Description', _descriptionController, Icons.description, maxLines: 3),
+                    SizedBox(height: 24),
+                    _isLoading
+                        ? Center(child: CircularProgressIndicator())
+                        : ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.pinkAccent,
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      onPressed: _isLoading ? null : _savePetProfile,
+                      child: Text(
+                        _isEditing ? 'Update Profile' : 'Save Profile',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
                     ),
-                    onPressed: _savePetProfile,
-                    child: Text(
-                      _isEditing ? 'Update Profile' : 'Save Profile',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -253,8 +314,25 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
         if (value == null || value.isEmpty) {
           return 'Please enter your pet\'s $label';
         }
+
+        // Add age-specific validation
+        if (label == 'Age') {
+          try {
+            final age = int.parse(value);
+            if (age <= 0) {
+              return 'Age must be a positive number';
+            }
+            if (age > 30) {  // Assuming 30 is a reasonable maximum age for pets
+              return 'Please enter a valid age';
+            }
+          } catch (e) {
+            return 'Please enter a valid number';
+          }
+        }
+
         return null;
       },
+      enabled: !_isLoading, // Disable fields during loading
     );
   }
 

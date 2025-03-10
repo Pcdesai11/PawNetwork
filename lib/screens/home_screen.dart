@@ -9,6 +9,7 @@ import '../../models/pet.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutter/foundation.dart';
 import 'dart:typed_data';
+import 'package:permission_handler/permission_handler.dart';
 
 class HomeScreen extends StatefulWidget {
   final String? userId;
@@ -54,8 +55,13 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
   }
+
+  // Fixed to delete associated images from Firebase Storage
   Future<void> _deletePetProfile(String petId) async {
     try {
+      // Get the pet to access its imageUrl
+      Pet? petToDelete = pets.firstWhere((pet) => pet.id == petId);
+
       // Delete the pet profile from Firestore
       await FirebaseFirestore.instance
           .collection('users')
@@ -63,6 +69,18 @@ class _HomeScreenState extends State<HomeScreen> {
           .collection('pets')
           .doc(petId)
           .delete();
+
+      // Delete the associated image from Firebase Storage if it exists
+      if (petToDelete.imageUrl.isNotEmpty) {
+        try {
+          // Extract the storage path from the download URL
+          Reference imageRef = FirebaseStorage.instance.refFromURL(petToDelete.imageUrl);
+          await imageRef.delete();
+        } catch (storageError) {
+          print('Error deleting image: $storageError');
+          // Continue with deletion even if image deletion fails
+        }
+      }
 
       // Immediately remove the deleted pet from the local list
       setState(() {
@@ -86,12 +104,11 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
   }
+
   Future<void> _handleUpload(UploadTask uploadTask, Reference storageRef) async {
     try {
       TaskSnapshot snapshot = await uploadTask;
-      print(snapshot);
       String downloadUrl = await snapshot.ref.getDownloadURL();
-      print(downloadUrl);
       setState(() {
         // Add the uploaded image URL to the pet photos list
         widget.petPhotos.add(downloadUrl);
@@ -100,45 +117,95 @@ class _HomeScreenState extends State<HomeScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Image uploaded successfully!")),
       );
+
+      // Call the callback to notify parent widget
+      if (widget.onAddPhoto != null) {
+        widget.onAddPhoto!(downloadUrl);
+      }
     } catch (e) {
       print('Error getting download URL: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to process uploaded image!"), backgroundColor: Colors.red),
+      );
     }
   }
 
+  // Fixed path and added permission handling
   Future<void> uploadImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      print("User not authenticated");
-      return;
+    // Check for permissions on mobile platforms
+    if (!kIsWeb) {
+      var status = await Permission.photos.request();
+      if (status.isDenied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Gallery access permission denied"), backgroundColor: Colors.red),
+        );
+        return;
+      }
+
+      if (status.isPermanentlyDenied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Gallery access permanently denied. Please enable in settings."),
+            backgroundColor: Colors.red,
+            action: SnackBarAction(
+              label: 'Settings',
+              onPressed: () => openAppSettings(),
+            ),
+          ),
+        );
+        return;
+      }
     }
-    String userId = user.uid;
-    print(userId);
-    String imageId = path.basename(pickedFile!.path);
-    print(imageId);
-    if (pickedFile == null) return;
+
     try {
-      Reference storageRef = FirebaseStorage.instance.ref().child('posts/$userId/$imageId');
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+      if (pickedFile == null) return;
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("User not authenticated"), backgroundColor: Colors.red),
+        );
+        return;
+      }
+
+      String userId = user.uid;
+      String imageId = DateTime.now().millisecondsSinceEpoch.toString(); // Unique ID instead of file path
+
+      // Consistent path for pet images: users/{userId}/pets/images/{imageId}
+      Reference storageRef = FirebaseStorage.instance
+          .ref()
+          .child('users/$userId/pets/images/$imageId');
+
       UploadTask uploadTask;
       if (kIsWeb) {
         // Web platform - handle image upload using bytes
         Uint8List imageData = await pickedFile.readAsBytes();
-        uploadTask = storageRef.putData(imageData, SettableMetadata(contentType: 'image/jpeg'));
+        uploadTask = storageRef.putData(
+            imageData,
+            SettableMetadata(contentType: 'image/jpeg')
+        );
       } else {
         // Mobile platform - handle image upload from file
         File imageFile = File(pickedFile.path);
-        uploadTask = storageRef.putFile(imageFile, SettableMetadata(contentType: 'image/jpeg'));
+        uploadTask = storageRef.putFile(
+            imageFile,
+            SettableMetadata(contentType: 'image/jpeg')
+        );
       }
+
       // Handle the upload task and get the download URL
       await _handleUpload(uploadTask, storageRef);
     } catch (e) {
       print('Error uploading image: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error uploading image!")),
+        SnackBar(content: Text("Error uploading image: ${e.toString()}"), backgroundColor: Colors.red),
       );
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -165,13 +232,7 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          await uploadImage();
-          if (widget.onAddPhoto != null) {
-            widget.onAddPhoto!(widget.petPhotos.last);
-            print(widget.onAddPhoto);// Notify MainScreen of new photo
-          }
-        },
+        onPressed: () => uploadImage(),
         child: Icon(Icons.add_a_photo),
         backgroundColor: Colors.pinkAccent,
       ),
@@ -180,7 +241,30 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildEmptyState() {
     return Center(
-      child: Text('No pets added yet.'),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.pets, size: 80, color: Colors.grey),
+          SizedBox(height: 16),
+          Text(
+            'No pets added yet.',
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey,
+            ),
+          ),
+          SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pushNamed(context, '/add_pet');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.pinkAccent,
+            ),
+            child: Text('Add Your First Pet'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -204,6 +288,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   height: 150,
                   width: double.infinity,
                   fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      height: 150,
+                      width: double.infinity,
+                      color: Colors.grey[300],
+                      child: Center(
+                        child: Icon(Icons.error, color: Colors.red),
+                      ),
+                    );
+                  },
                 ),
               ),
             SizedBox(height: 12),
@@ -231,16 +325,55 @@ class _HomeScreenState extends State<HomeScreen> {
               style: TextStyle(fontSize: 16),
             ),
             SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: IconButton(
-                icon: Icon(Icons.delete, color: Colors.red),
-                onPressed: () => _deletePetProfile(pet.id),
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(
+                  icon: Icon(Icons.edit, color: Colors.blue),
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      '/edit_pet',
+                      arguments: pet,
+                    );
+                  },
+                ),
+                IconButton(
+                  icon: Icon(Icons.delete, color: Colors.red),
+                  onPressed: () => _showDeleteConfirmation(pet.id, pet.name),
+                ),
+              ],
             ),
           ],
         ),
       ),
+    );
+  }
+
+  void _showDeleteConfirmation(String petId, String petName) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Delete Pet Profile'),
+          content: Text('Are you sure you want to delete $petName\'s profile? This action cannot be undone.'),
+          actions: [
+            TextButton(
+              child: Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: Text('Delete', style: TextStyle(color: Colors.red)),
+              onPressed: () {
+                Navigator.of(context).pop();
+                _deletePetProfile(petId);
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }
