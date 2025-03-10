@@ -5,6 +5,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:pawnetwork/screens/pet_profile_screen.dart';
 import '../../models/pet.dart';
 import 'package:path/path.dart' as path;
 import 'package:flutter/foundation.dart';
@@ -256,7 +257,21 @@ class _HomeScreenState extends State<HomeScreen> {
           SizedBox(height: 24),
           ElevatedButton(
             onPressed: () {
-              Navigator.pushNamed(context, '/add_pet');
+              // Replace the named route with direct navigation
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PetProfileScreen(
+                    userId: widget.userId ?? '',
+                    pet: null, // null since we're creating a new pet
+                  ),
+                ),
+              ).then((pet) {
+                // Refresh the pet list when returning from adding a pet
+                if (pet != null) {
+                  _loadPetProfile();
+                }
+              });
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.pinkAccent,
