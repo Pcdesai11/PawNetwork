@@ -135,15 +135,22 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> uploadImage() async {
     // Check for permissions on mobile platforms
     if (!kIsWeb) {
-      var status = await Permission.photos.request();
-      if (status.isDenied) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Gallery access permission denied"), backgroundColor: Colors.red),
-        );
-        return;
+      // For older Android versions
+      var storagePermission = await Permission.storage.status;
+      // For Android 13+
+      var photosPermission = await Permission.photos.status;
+
+      // Request whichever permission isn't granted yet
+      if (storagePermission.isDenied) {
+        storagePermission = await Permission.storage.request();
       }
 
-      if (status.isPermanentlyDenied) {
+      if (photosPermission.isDenied) {
+        photosPermission = await Permission.photos.request();
+      }
+
+      // Check if either permission was permanently denied
+      if (storagePermission.isPermanentlyDenied || photosPermission.isPermanentlyDenied) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Gallery access permanently denied. Please enable in settings."),
@@ -153,6 +160,14 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: () => openAppSettings(),
             ),
           ),
+        );
+        return;
+      }
+
+      // Check if both permissions are still denied
+      if (storagePermission.isDenied && photosPermission.isDenied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Gallery access permission denied"), backgroundColor: Colors.red),
         );
         return;
       }
@@ -173,12 +188,12 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       String userId = user.uid;
-      String imageId = DateTime.now().millisecondsSinceEpoch.toString(); // Unique ID instead of file path
+      String imageId = DateTime.now().millisecondsSinceEpoch.toString();
 
-      // Consistent path for pet images: users/{userId}/pets/images/{imageId}
+      // Use path that matches your Firebase Storage rules
       Reference storageRef = FirebaseStorage.instance
           .ref()
-          .child('users/$userId/pets/images/$imageId');
+          .child('pet_images/$imageId');
 
       UploadTask uploadTask;
       if (kIsWeb) {
