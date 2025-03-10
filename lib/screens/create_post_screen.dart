@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
@@ -115,8 +116,15 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         _uploadProgress = 0.0;
       });
 
+      // Get current user
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
       final fileName = path.basename(_image!.path);
-      final destination = 'post_images/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+      // Change path to match your security rules
+      final destination = 'posts/${user.uid}/${DateTime.now().millisecondsSinceEpoch}_$fileName';
 
       final ref = FirebaseStorage.instance.ref().child(destination);
       final uploadTask = ref.putFile(_image!);
