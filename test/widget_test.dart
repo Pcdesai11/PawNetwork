@@ -24,6 +24,7 @@ import 'mock.dart';
 import 'dart:io';
 import 'package:pawnetwork/screens/main_screen.dart';
 
+
 class MockPostService extends Mock implements PostService {}
 
 // Mock Firebase Storage
@@ -82,6 +83,7 @@ class MockImagePicker extends Mock implements ImagePicker {
 }
 
 void main() {
+
   setupFirebaseAuthMocks();
   setUpAll(() async {
     await Firebase.initializeApp();
@@ -513,8 +515,17 @@ void main() {
       await tester.pump();
       expect(find.text('Fluffy'), findsOneWidget);
       expect(find.text('Breed: Golden Retriever'), findsOneWidget);
+      expect(find.text('Age: 3 years'), findsOneWidget);
+      expect(find.text('Description: Friendly dog'), findsOneWidget);
     });
-
+    testWidgets('App bar title is displayed', (WidgetTester tester) async {
+      await tester.pumpWidget(MaterialApp(home: CommunityFeedScreen()));
+      expect(find.text('PawNetwork Feed'), findsOneWidget);
+    });
+    testWidgets('Floating action button is displayed', (WidgetTester tester) async {
+      await tester.pumpWidget(MaterialApp(home: CommunityFeedScreen()));
+      expect(find.byType(FloatingActionButton), findsOneWidget);
+      });
     testWidgets('tap on delete icon removes pet', (WidgetTester tester) async {
       final Pet pet = Pet(
         id: 'petId',
@@ -535,8 +546,8 @@ void main() {
       );
       await tester.pump();
       expect(find.text('No pets added yet.'), findsOneWidget);
+      });
     });
-  });
 
   // New Pet Profile Screen Tests
   group('Pet Profile Screen Tests', () {

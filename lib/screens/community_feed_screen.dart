@@ -239,7 +239,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
       appBar: AppBar(
         title: Text('PawNetwork Feed'),
       ),
-      // Replace the following code in your CommunityFeedScreen.dart file
+      // Replace the following code in your CommunityFeedScreen_test.dart file
 // Find the FloatingActionButton section in the build method and replace it with this:
 
       floatingActionButton: FloatingActionButton(
